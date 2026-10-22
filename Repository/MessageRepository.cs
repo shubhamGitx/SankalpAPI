@@ -291,40 +291,17 @@ namespace SankalpAPI.Repository
             SqlParameter[] parameters;
             var list = new List<BroadcastMessageDto>();
 
-            const string query = @"
-            SELECT B.Portal_id,
-                   B.User_Type_ID,
-                   B.Bmsg_id,
-                   B.MesgTypeID,
-                   B.message_head,
-                   B.message_body,
-                   B.validity_in_minutes,
-                   B.is_active,
-                   B.photo1path,
-                   B.photo2path,
-                   B.videopath,
-                   B.documentpath,
-                   B.entryby,
-                   B.entrydate,
-                   B.updatedby,
-                   B.updateddate,
-                   B.IsDeleted,
-                   B.IsSynced
-            FROM dbo.tbl_BroadCastMessage AS B
-            WHERE (B.is_active IS NULL OR B.is_active = 'Y' OR B.is_active = '1')
-              AND ISNULL(B.IsDeleted, 'N') <> 'Y'
-              AND (
-                    NULLIF(LTRIM(RTRIM(@p_device_id)), '') IS NULL
-                    OR (B.Portal_id IS NULL AND B.User_Type_ID IS NULL)
-                    OR EXISTS (
-                        SELECT 1
-                        FROM dbo.tbl_map_user_portal AS M
-                        WHERE M.deviceid = @p_device_id
-                          AND M.portal_id = B.Portal_id
-                          AND M.User_Type_ID = B.User_Type_ID
-                    )
-                  )
-            ORDER BY B.entrydate DESC, B.Bmsg_id DESC;";
+            const string query = @"SELECT B.Portal_id, B.User_Type_ID, B.Bmsg_id, B.message_head, B.message_body, B.validity_in_minutes, B.is_active, B.photo1path, B.photo2path, B.videopath,
+                                 B.documentpath,  B.entrydate, B.updatedby, B.updateddate, B.IsSynced, B.IsDeleted, B.IsAllDistrict, B.MesgTypeID
+                                 FROM   tbl_BroadCastMessage AS B                 
+                                 WHERE  (B.is_active IS NULL OR B.is_active = 'Y' OR B.is_active = '1')              
+                                 AND  (@p_device_id = '' OR B.Portal_id IS NULL OR EXISTS (SELECT 1 FROM   dbo.tbl_map_user_portal M WHERE  M.portal_id    = B.Portal_id AND  M.User_Type_ID = B.User_Type_ID 
+                                 AND  M.deviceid     = @p_device_id))                
+                                 AND  (@p_device_id = ''  OR ISNULL(B.IsAllDistrict, 'Y') = 'Y' OR EXISTS (SELECT 1 FROM   dbo.tbl_BroadCastMapDistrict D INNER JOIN 
+                                 dbo.tbl_map_user_portal   U ON U.deviceid = @p_device_id
+                                 WHERE  D.Bmsg_id = B.Bmsg_id 
+                                 AND  (D.district_code = U.district_code OR D.block_code    = U.block_code OR D.panchayatcode = U.panchayatcode)))
+                                 ORDER BY B.entrydate DESC, B.Bmsg_id DESC;";
 
             parameters = new SqlParameter[]
                {
@@ -354,7 +331,8 @@ namespace SankalpAPI.Repository
                     UpdatedBy = SafeString(row, "updatedby"),
                     UpdatedDate = SafeNullableDateTime(row, "updateddate"),
                     IsSynced = SafeString(row, "IsSynced") ?? "N",
-                    IsDeleted = SafeString(row, "IsDeleted") ?? "N"
+                    IsDeleted = SafeString(row, "IsDeleted") ?? "N",
+                    MesgTypeID = SafeString(row, "MesgTypeID")
                 });
             }
 
@@ -487,10 +465,57 @@ namespace SankalpAPI.Repository
                 UpdatedBy = SafeString(row, "updatedby"),
                 UpdatedDate = SafeNullableDateTime(row, "updateddate"),
                 IsSynced = SafeString(row, "IsSynced") ?? "N",
-                IsDeleted = SafeString(row, "IsDeleted") ?? "N"
+                IsDeleted = SafeString(row, "IsDeleted") ?? "N",
+                IsVerified = SafeNullableBool(row, "IsVerified"),
+                IsApproved = SafeNullableBool(row, "IsApproved")
             };
 
             return Task.FromResult<BroadcastMessageDto?>(dto);
+        }
+
+        public Task<bool> BroadcastMessageExistsAsync(long bmsgId)
+        {
+            const string query = @"SELECT COUNT(1) FROM dbo.tbl_BroadCastMessage WHERE Bmsg_id = @bmsg_id;";
+            SqlParameter[] parameters =
+            {
+                new SqlParameter("@bmsg_id", SqlDbType.BigInt) { Value = bmsgId }
+            };
+
+            object? result = _dataAccess.ExecuteScalar(query, parameters);
+            bool exists = result != null && result != DBNull.Value && Convert.ToInt64(result) > 0;
+            return Task.FromResult(exists);
+        }
+
+        public Task<int> UpdateBroadcastVerifiedStatusAsync(long bmsgId, bool isVerified)
+        {
+            const string query = @"UPDATE dbo.tbl_BroadCastMessage
+                                   SET IsVerified = @is_verified
+                                   WHERE Bmsg_id = @bmsg_id;";
+
+            SqlParameter[] parameters =
+            {
+                new SqlParameter("@bmsg_id", SqlDbType.BigInt) { Value = bmsgId },
+                new SqlParameter("@is_verified", SqlDbType.Bit) { Value = isVerified }
+            };
+
+            int rowsAffected = _dataAccess.ExecuteSql(query, parameters);
+            return Task.FromResult(rowsAffected);
+        }
+
+        public Task<int> UpdateBroadcastApprovedStatusAsync(long bmsgId, bool isApproved)
+        {
+            const string query = @"UPDATE dbo.tbl_BroadCastMessage
+                                   SET IsApproved = @is_approved
+                                   WHERE Bmsg_id = @bmsg_id;";
+
+            SqlParameter[] parameters =
+            {
+                new SqlParameter("@bmsg_id", SqlDbType.BigInt) { Value = bmsgId },
+                new SqlParameter("@is_approved", SqlDbType.Bit) { Value = isApproved }
+            };
+
+            int rowsAffected = _dataAccess.ExecuteSql(query, parameters);
+            return Task.FromResult(rowsAffected);
         }
 
         public Task<long> InsertInterestWiseMessageAsync(InsertInterestWiseMessageRequest request)
@@ -708,6 +733,18 @@ namespace SankalpAPI.Repository
             var val = row[colName];
             if (val == null || val == DBNull.Value) return null;
             return val.ToString();
+        }
+
+        private static bool? SafeNullableBool(DataRow row, string colName)
+        {
+            if (!row.Table.Columns.Contains(colName)) return null;
+            var val = row[colName];
+            if (val == null || val == DBNull.Value) return null;
+            if (bool.TryParse(val.ToString(), out bool b)) return b;
+            string str = val.ToString()?.Trim() ?? string.Empty;
+            if (str == "1" || str.Equals("Y", StringComparison.OrdinalIgnoreCase) || str.Equals("True", StringComparison.OrdinalIgnoreCase)) return true;
+            if (str == "0" || str.Equals("N", StringComparison.OrdinalIgnoreCase) || str.Equals("False", StringComparison.OrdinalIgnoreCase)) return false;
+            return null;
         }
     }
 }

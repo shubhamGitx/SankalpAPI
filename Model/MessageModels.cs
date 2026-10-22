@@ -217,6 +217,19 @@ namespace SankalpAPI.Model
         [Newtonsoft.Json.JsonProperty("IsDeleted")]
         public string? IsDeleted { get; set; }
 
+
+        [System.Text.Json.Serialization.JsonPropertyName("MesgTypeID")]
+        [Newtonsoft.Json.JsonProperty("MesgTypeID")]
+        public string? MesgTypeID { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("is_verified")]
+        [Newtonsoft.Json.JsonProperty("is_verified")]
+        public bool? IsVerified { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("is_approved")]
+        [Newtonsoft.Json.JsonProperty("is_approved")]
+        public bool? IsApproved { get; set; }
+
         /// <summary>
         /// If the message text contains structured JSON, it is parsed and exposed here as an object.
         /// </summary>
@@ -492,5 +505,87 @@ namespace SankalpAPI.Model
         [System.Text.Json.Serialization.JsonPropertyName("is_deleted")]
         [Newtonsoft.Json.JsonProperty("is_deleted")]
         public string? IsDeleted { get; set; }
+    }
+
+    /// <summary>
+    /// Request payload to update verification status of a broadcast message.
+    /// </summary>
+    public class UpdateBroadcastVerifiedRequest
+    {
+        [System.Text.Json.Serialization.JsonPropertyName("Bmsg_id")]
+        [Newtonsoft.Json.JsonProperty("Bmsg_id")]
+        public long Bmsg_id { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("IsVerified")]
+        [Newtonsoft.Json.JsonProperty("IsVerified")]
+        public bool IsVerified { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("VerifiedBy")]
+        [Newtonsoft.Json.JsonProperty("VerifiedBy")]
+        public string? VerifiedBy { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("VerifiedIP")]
+        [Newtonsoft.Json.JsonProperty("VerifiedIP")]
+        public string? VerifiedIP { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("client_key")]
+        [Newtonsoft.Json.JsonProperty("client_key")]
+        public string? ClientKey { get; set; }
+    }
+
+    /// <summary>
+    /// Request payload to update approval status of a broadcast message.
+    /// </summary>
+    public class UpdateBroadcastApprovedRequest
+    {
+        [System.Text.Json.Serialization.JsonPropertyName("Bmsg_id")]
+        [Newtonsoft.Json.JsonProperty("Bmsg_id")]
+        public long Bmsg_id { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("IsApproved")]
+        [Newtonsoft.Json.JsonProperty("IsApproved")]
+        public bool IsApproved { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("ApprovedBy")]
+        [Newtonsoft.Json.JsonProperty("ApprovedBy")]
+        public string? ApprovedBy { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("ApprovedIP")]
+        [Newtonsoft.Json.JsonProperty("ApprovedIP")]
+        public string? ApprovedIP { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("client_key")]
+        [Newtonsoft.Json.JsonProperty("client_key")]
+        public string? ClientKey { get; set; }
+    }
+
+    /// <summary>
+    /// Standard response for updating broadcast message status (IsVerified or IsApproved).
+    /// </summary>
+    public class UpdateBroadcastStatusResponse
+    {
+        [System.Text.Json.Serialization.JsonPropertyName("status")]
+        [Newtonsoft.Json.JsonProperty("status")]
+        public bool Status { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("message")]
+        [Newtonsoft.Json.JsonProperty("message")]
+        public string Message { get; set; } = string.Empty;
+
+        [System.Text.Json.Serialization.JsonPropertyName("bmsg_id")]
+        [Newtonsoft.Json.JsonProperty("bmsg_id", NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public long? Bmsg_id { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("is_verified")]
+        [Newtonsoft.Json.JsonProperty("is_verified", NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public bool? IsVerified { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("is_approved")]
+        [Newtonsoft.Json.JsonProperty("is_approved", NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public bool? IsApproved { get; set; }
+
+        [System.Text.Json.Serialization.JsonIgnore]
+        [Newtonsoft.Json.JsonIgnore]
+        public int StatusCode { get; set; } = 200;
     }
 }

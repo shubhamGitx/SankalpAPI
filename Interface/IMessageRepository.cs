@@ -18,5 +18,8 @@ namespace SankalpAPI.Interface
         Task<BroadcastMessageDto?> GetBroadcastMessageByIdAsync(long bmsgId);
         Task<long> InsertInterestWiseMessageAsync(InsertInterestWiseMessageRequest request);
         Task<List<InterestWiseMessageDto>> GetInterestWiseMessagesAsync(long? interestId = null);
+        Task<bool> BroadcastMessageExistsAsync(long bmsgId);
+        Task<int> UpdateBroadcastVerifiedStatusAsync(long bmsgId, bool isVerified);
+        Task<int> UpdateBroadcastApprovedStatusAsync(long bmsgId, bool isApproved);
     }
 }

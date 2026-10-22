@@ -120,6 +120,7 @@ builder.Services.AddScoped<IMessageRepository, MessageRepository>();
 builder.Services.AddScoped<IApplicantRepository, ApplicantRepository>();
 builder.Services.AddScoped<IDashboardRepository, DashboardRepository>();
 builder.Services.AddScoped<IGroupRepository, GroupRepository>();
+builder.Services.AddScoped<ICampaignRepository, CampaignRepository>();
 
 // Services
 builder.Services.AddScoped<IAuthService, AuthService>();
@@ -138,6 +139,9 @@ builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<DashboardService>();
 builder.Services.AddScoped<GroupService>();
 builder.Services.AddScoped<IFcmNotificationService, FcmNotificationService>();
+builder.Services.AddScoped<IFirebaseNotificationService, FirebaseNotificationService>();
+builder.Services.AddScoped<ICampaignService, CampaignService>();
+builder.Services.AddHostedService<CampaignSchedulerWorker>();
 
 builder.Services.AddScoped<ExceptionLogging>();
 

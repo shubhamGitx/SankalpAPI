@@ -154,6 +154,130 @@ namespace SankalpAPI.Controllers
         }
 
         /// <summary>
+        /// Updates the verification status (IsVerified) of a broadcast message in tbl_BroadCastMessage.
+        /// </summary>
+        /// <remarks>
+        /// Sample Request:
+        /// 
+        ///     POST /api/Message/IsVerified
+        ///     {
+        ///       "Bmsg_id": 101,
+        ///       "IsVerified": true,
+        ///       "VerifiedBy": "ABC",
+        ///       "VerifiedIP": "10.133.20.147"
+        ///     }
+        /// </remarks>
+        [HttpPost("IsVerified")]
+        [Consumes("application/json")]
+        [ProducesResponseType(typeof(UpdateBroadcastStatusResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(UpdateBroadcastStatusResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(UpdateBroadcastStatusResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(UpdateBroadcastStatusResponse), StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> IsVerified([FromBody] UpdateBroadcastVerifiedRequest request)
+        {
+            if (request == null)
+            {
+                return BadRequest(new UpdateBroadcastStatusResponse
+                {
+                    Status = false,
+                    StatusCode = StatusCodes.Status400BadRequest,
+                    Message = "Invalid request payload."
+                });
+            }
+
+            if (request.Bmsg_id <= 0)
+            {
+                return BadRequest(new UpdateBroadcastStatusResponse
+                {
+                    Status = false,
+                    StatusCode = StatusCodes.Status400BadRequest,
+                    Message = "A valid Bmsg_id greater than 0 is required."
+                });
+            }
+
+            var result = await _messageService.UpdateBroadcastVerifiedAsync(request);
+
+            if (!result.Status)
+            {
+                if (result.StatusCode == StatusCodes.Status404NotFound)
+                {
+                    return NotFound(result);
+                }
+
+                if (result.StatusCode == StatusCodes.Status400BadRequest)
+                {
+                    return BadRequest(result);
+                }
+
+                return StatusCode(StatusCodes.Status500InternalServerError, result);
+            }
+
+            return Ok(result);
+        }
+
+        /// <summary>
+        /// Updates the approval status (IsApproved) of a broadcast message in tbl_BroadCastMessage.
+        /// </summary>
+        /// <remarks>
+        /// Sample Request:
+        /// 
+        ///     POST /api/Message/IsApproved
+        ///     {
+        ///       "Bmsg_id": 101,
+        ///       "IsApproved": true,
+        ///       "ApprovedBy": "ABC",
+        ///       "ApprovedIP": "10.133.20.147"
+        ///     }
+        /// </remarks>
+        [HttpPost("IsApproved")]
+        [Consumes("application/json")]
+        [ProducesResponseType(typeof(UpdateBroadcastStatusResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(UpdateBroadcastStatusResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(UpdateBroadcastStatusResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(UpdateBroadcastStatusResponse), StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> IsApproved([FromBody] UpdateBroadcastApprovedRequest request)
+        {
+            if (request == null)
+            {
+                return BadRequest(new UpdateBroadcastStatusResponse
+                {
+                    Status = false,
+                    StatusCode = StatusCodes.Status400BadRequest,
+                    Message = "Invalid request payload."
+                });
+            }
+
+            if (request.Bmsg_id <= 0)
+            {
+                return BadRequest(new UpdateBroadcastStatusResponse
+                {
+                    Status = false,
+                    StatusCode = StatusCodes.Status400BadRequest,
+                    Message = "A valid Bmsg_id greater than 0 is required."
+                });
+            }
+
+            var result = await _messageService.UpdateBroadcastApprovedAsync(request);
+
+            if (!result.Status)
+            {
+                if (result.StatusCode == StatusCodes.Status404NotFound)
+                {
+                    return NotFound(result);
+                }
+
+                if (result.StatusCode == StatusCodes.Status400BadRequest)
+                {
+                    return BadRequest(result);
+                }
+
+                return StatusCode(StatusCodes.Status500InternalServerError, result);
+            }
+
+            return Ok(result);
+        }
+
+        /// <summary>
         /// Insert a new interest-wise message into tbl_Message (without using portal_id or mobile columns) via POST JSON body.
         /// Targeted to users based on a single interest_id.
         /// </summary>

@@ -194,15 +194,15 @@ namespace SankalpAPI.Model
 
         [JsonPropertyName("district_code")]
         [JsonProperty("district_code")]
-        public long? DistrictCode { get; set; }
+        public string? DistrictCode { get; set; }
 
         [JsonPropertyName("block_code")]
         [JsonProperty("block_code")]
-        public long? BlockCode { get; set; }
+        public string? BlockCode { get; set; }
 
         [JsonPropertyName("panchayatcode")]
         [JsonProperty("panchayatcode")]
-        public long? PanchayatCode { get; set; }
+        public string? PanchayatCode { get; set; }
 
         [JsonPropertyName("entry_by")]
         [JsonProperty("entry_by")]

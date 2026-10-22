@@ -48,19 +48,19 @@ namespace SankalpAPI.Controllers
         /// <summary>
         /// Step 1 in Mobile App Flow: Fetch list of available web applications/portals via GET.
         /// </summary>
-        //[HttpGet("GetPortals")]
-        //[ProducesResponseType(typeof(PortalListResponse), StatusCodes.Status200OK)]
-        //public async Task<IActionResult> GetPortals()
-        //{
-        //    var portals = await _portalRepository.GetActivePortalsAsync();
+        [HttpGet("GetPortals")]
+        [ProducesResponseType(typeof(PortalListResponse), StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetPortals()
+        {
+            var portals = await _portalRepository.GetActivePortalsAsync();
 
-        //    return Ok(new PortalListResponse
-        //    {
-        //        Status = true,
-        //        Message = "Portals retrieved successfully.",
-        //        Data = portals
-        //    });
-        //}
+            return Ok(new PortalListResponse
+            {
+                Status = true,
+                Message = "Portals retrieved successfully.",
+                Data = portals
+            });
+        }
 
         /// <summary>
         /// Fetch details of a specific portal by ID via POST JSON body.

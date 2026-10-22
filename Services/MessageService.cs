@@ -378,6 +378,168 @@ namespace SankalpAPI.Services
             }
         }
 
+        public async Task<UpdateBroadcastStatusResponse> UpdateBroadcastVerifiedAsync(UpdateBroadcastVerifiedRequest request)
+        {
+            if (request == null)
+            {
+                return new UpdateBroadcastStatusResponse
+                {
+                    Status = false,
+                    StatusCode = 400,
+                    Message = "Invalid request payload."
+                };
+            }
+
+            if (request.Bmsg_id <= 0)
+            {
+                return new UpdateBroadcastStatusResponse
+                {
+                    Status = false,
+                    StatusCode = 400,
+                    Message = "A valid Bmsg_id greater than 0 is required."
+                };
+            }
+
+            if (!string.IsNullOrWhiteSpace(request.VerifiedBy))
+            {
+                request.VerifiedBy = DecryptIfNeeded(request.VerifiedBy, request.ClientKey);
+            }
+
+            try
+            {
+                bool exists = await _messageRepository.BroadcastMessageExistsAsync(request.Bmsg_id);
+                if (!exists)
+                {
+                    return new UpdateBroadcastStatusResponse
+                    {
+                        Status = false,
+                        StatusCode = 404,
+                        Bmsg_id = request.Bmsg_id,
+                        Message = $"Broadcast message with ID {request.Bmsg_id} was not found."
+                    };
+                }
+
+                int rowsAffected = await _messageRepository.UpdateBroadcastVerifiedStatusAsync(request.Bmsg_id, request.IsVerified);
+
+                if (rowsAffected > 0)
+                {
+                    _logger.LogInformation("Broadcast message {Bmsg_id} IsVerified updated to {IsVerified} by {VerifiedBy} (IP: {VerifiedIP})",
+                        request.Bmsg_id, request.IsVerified, request.VerifiedBy ?? "Unknown", request.VerifiedIP ?? "Unknown");
+
+                    return new UpdateBroadcastStatusResponse
+                    {
+                        Status = true,
+                        StatusCode = 200,
+                        Bmsg_id = request.Bmsg_id,
+                        IsVerified = request.IsVerified,
+                        Message = $"Broadcast message verification status updated successfully to {(request.IsVerified ? "true" : "false")}."
+                    };
+                }
+
+                return new UpdateBroadcastStatusResponse
+                {
+                    Status = false,
+                    StatusCode = 500,
+                    Bmsg_id = request.Bmsg_id,
+                    Message = "Failed to update broadcast message verification status."
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating IsVerified status for broadcast message {Bmsg_id}", request.Bmsg_id);
+                _exceptionLogging.SendErrorToText(ex);
+
+                return new UpdateBroadcastStatusResponse
+                {
+                    Status = false,
+                    StatusCode = 500,
+                    Bmsg_id = request.Bmsg_id,
+                    Message = "An error occurred while updating the verification status."
+                };
+            }
+        }
+
+        public async Task<UpdateBroadcastStatusResponse> UpdateBroadcastApprovedAsync(UpdateBroadcastApprovedRequest request)
+        {
+            if (request == null)
+            {
+                return new UpdateBroadcastStatusResponse
+                {
+                    Status = false,
+                    StatusCode = 400,
+                    Message = "Invalid request payload."
+                };
+            }
+
+            if (request.Bmsg_id <= 0)
+            {
+                return new UpdateBroadcastStatusResponse
+                {
+                    Status = false,
+                    StatusCode = 400,
+                    Message = "A valid Bmsg_id greater than 0 is required."
+                };
+            }
+
+            if (!string.IsNullOrWhiteSpace(request.ApprovedBy))
+            {
+                request.ApprovedBy = DecryptIfNeeded(request.ApprovedBy, request.ClientKey);
+            }
+
+            try
+            {
+                bool exists = await _messageRepository.BroadcastMessageExistsAsync(request.Bmsg_id);
+                if (!exists)
+                {
+                    return new UpdateBroadcastStatusResponse
+                    {
+                        Status = false,
+                        StatusCode = 404,
+                        Bmsg_id = request.Bmsg_id,
+                        Message = $"Broadcast message with ID {request.Bmsg_id} was not found."
+                    };
+                }
+
+                int rowsAffected = await _messageRepository.UpdateBroadcastApprovedStatusAsync(request.Bmsg_id, request.IsApproved);
+
+                if (rowsAffected > 0)
+                {
+                    _logger.LogInformation("Broadcast message {Bmsg_id} IsApproved updated to {IsApproved} by {ApprovedBy} (IP: {ApprovedIP})",
+                        request.Bmsg_id, request.IsApproved, request.ApprovedBy ?? "Unknown", request.ApprovedIP ?? "Unknown");
+
+                    return new UpdateBroadcastStatusResponse
+                    {
+                        Status = true,
+                        StatusCode = 200,
+                        Bmsg_id = request.Bmsg_id,
+                        IsApproved = request.IsApproved,
+                        Message = $"Broadcast message approval status updated successfully to {(request.IsApproved ? "true" : "false")}."
+                    };
+                }
+
+                return new UpdateBroadcastStatusResponse
+                {
+                    Status = false,
+                    StatusCode = 500,
+                    Bmsg_id = request.Bmsg_id,
+                    Message = "Failed to update broadcast message approval status."
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating IsApproved status for broadcast message {Bmsg_id}", request.Bmsg_id);
+                _exceptionLogging.SendErrorToText(ex);
+
+                return new UpdateBroadcastStatusResponse
+                {
+                    Status = false,
+                    StatusCode = 500,
+                    Bmsg_id = request.Bmsg_id,
+                    Message = "An error occurred while updating the approval status."
+                };
+            }
+        }
+
         public async Task<InsertInterestWiseMessageResponse> InsertInterestWiseMessageAsync(InsertInterestWiseMessageRequest request)
         {
             if (request == null)

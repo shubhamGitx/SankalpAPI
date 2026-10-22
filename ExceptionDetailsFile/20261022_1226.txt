@@ -1,0 +1,10 @@
+----------- Exception Details -----------
+Log Date       : 10/22/2026 12:26:29 PM
+Error Line No  : line 74
+Error Message  : ArgumentException
+Exception Type : System.ArgumentException
+Error Location : The SqlParameter is already contained by another SqlParameterCollection.
+Request URL    : /api/MessageCampaign/DeliveryReport/17
+User Host IP   : ::1
+----------------------------------------
+
