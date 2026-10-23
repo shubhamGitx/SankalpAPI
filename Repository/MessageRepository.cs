@@ -292,7 +292,8 @@ namespace SankalpAPI.Repository
             var list = new List<BroadcastMessageDto>();
 
             const string query = @"SELECT B.Portal_id, B.User_Type_ID, B.Bmsg_id, B.message_head, B.message_body, B.validity_in_minutes, B.is_active, B.photo1path, B.photo2path, B.videopath,
-                                 B.documentpath,  B.entrydate, B.updatedby, B.updateddate, B.IsSynced, B.IsDeleted, B.IsAllDistrict, B.MesgTypeID
+                                 B.documentpath, B.entryby, B.entrydate, B.updatedby, B.updateddate, B.IsSynced, B.IsDeleted, B.IsAllDistrict, B.MesgTypeID,
+                                 B.IsVerified, B.VerifiedBy, B.VerifiedDate, B.VerifiedIP, B.IsApproved, B.ApprovedBy, B.ApprovedDate, B.ApprovedIP
                                  FROM   tbl_BroadCastMessage AS B                 
                                  WHERE  (B.is_active IS NULL OR B.is_active = 'Y' OR B.is_active = '1')              
                                  AND  (@p_device_id = '' OR B.Portal_id IS NULL OR EXISTS (SELECT 1 FROM   dbo.tbl_map_user_portal M WHERE  M.portal_id    = B.Portal_id AND  M.User_Type_ID = B.User_Type_ID 
@@ -332,16 +333,103 @@ namespace SankalpAPI.Repository
                     UpdatedDate = SafeNullableDateTime(row, "updateddate"),
                     IsSynced = SafeString(row, "IsSynced") ?? "N",
                     IsDeleted = SafeString(row, "IsDeleted") ?? "N",
-                    MesgTypeID = SafeString(row, "MesgTypeID")
+                    MesgTypeID = SafeString(row, "MesgTypeID"),
+                    IsVerified = SafeNullableBool(row, "IsVerified"),
+                    VerifiedBy = SafeString(row, "VerifiedBy"),
+                    VerifiedDate = SafeNullableDateTime(row, "VerifiedDate"),
+                    VerifiedIP = SafeString(row, "VerifiedIP"),
+                    IsApproved = SafeNullableBool(row, "IsApproved"),
+                    ApprovedBy = SafeString(row, "ApprovedBy"),
+                    ApprovedDate = SafeNullableDateTime(row, "ApprovedDate"),
+                    ApprovedIP = SafeString(row, "ApprovedIP")
                 });
             }
 
             return Task.FromResult(list);
         }
 
+        public async Task<int> ForwardDraftMessagesAsync(
+            IReadOnlyCollection<long> bmsgIds,
+            string userRole,
+            string actionBy,
+            string? actionIp)
+        {
+            string normalizedRole = (userRole ?? string.Empty).Trim().ToUpperInvariant();
+            string updateSql = normalizedRole switch
+            {
+                "MKR" or "MAKER" => @"UPDATE dbo.tbl_BroadCastMessage
+                                        SET entryby = 'Checker',
+                                            IsVerified = 'N',
+                                            VerifiedBy = NULL,
+                                            VerifiedDate = NULL,
+                                            VerifiedIP = NULL,
+                                            UpdatedBy = @action_by,
+                                            UpdatedDate = GETDATE()
+                                        WHERE Bmsg_id = @bmsg_id
+                                          AND UPPER(ISNULL(NULLIF(LTRIM(RTRIM(IsVerified)), ''), 'N')) IN ('N', '0', 'FALSE')
+                                          AND UPPER(ISNULL(NULLIF(LTRIM(RTRIM(IsApproved)), ''), 'N')) IN ('N', '0', 'FALSE')
+                                          AND UPPER(ISNULL(entryby, '')) IN ('MAKER', 'MKR');",
+                "CKR" or "CHECKER" => @"UPDATE dbo.tbl_BroadCastMessage
+                                          SET entryby = 'Approver',
+                                              IsVerified = 'Y',
+                                              VerifiedBy = @action_by,
+                                              VerifiedDate = GETDATE(),
+                                              VerifiedIP = @action_ip,
+                                              UpdatedBy = @action_by,
+                                              UpdatedDate = GETDATE()
+                                          WHERE Bmsg_id = @bmsg_id
+                                            AND UPPER(ISNULL(NULLIF(LTRIM(RTRIM(IsVerified)), ''), 'N')) IN ('N', '0', 'FALSE')
+                                            AND UPPER(ISNULL(NULLIF(LTRIM(RTRIM(IsApproved)), ''), 'N')) IN ('N', '0', 'FALSE')
+                                            AND UPPER(ISNULL(entryby, '')) IN ('CHECKER', 'CKR');",
+                "APR" or "APPROVER" => @"UPDATE dbo.tbl_BroadCastMessage
+                                           SET entryby = 'Approved',
+                                               IsApproved = 'Y',
+                                               ApprovedBy = @action_by,
+                                               ApprovedDate = GETDATE(),
+                                               ApprovedIP = @action_ip,
+                                               UpdatedBy = @action_by,
+                                               UpdatedDate = GETDATE()
+                                           WHERE Bmsg_id = @bmsg_id
+                                             AND UPPER(ISNULL(NULLIF(LTRIM(RTRIM(IsVerified)), ''), 'N')) IN ('Y', '1', 'TRUE')
+                                             AND UPPER(ISNULL(NULLIF(LTRIM(RTRIM(IsApproved)), ''), 'N')) IN ('N', '0', 'FALSE')
+                                             AND UPPER(ISNULL(entryby, '')) IN ('APPROVER', 'APR');",
+                _ => string.Empty
+            };
+
+            if (string.IsNullOrEmpty(updateSql)) return 0;
+
+            await using var connection = _dataAccess.GetConnection();
+            await connection.OpenAsync();
+            await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync();
+
+            try
+            {
+                int processedCount = 0;
+                foreach (long bmsgId in bmsgIds.Where(id => id > 0).Distinct())
+                {
+                    await using var command = new SqlCommand(updateSql, connection, transaction);
+                    command.Parameters.Add(new SqlParameter("@bmsg_id", SqlDbType.BigInt) { Value = bmsgId });
+                    command.Parameters.Add(new SqlParameter("@action_by", SqlDbType.NVarChar, 255) { Value = actionBy.Trim() });
+                    command.Parameters.Add(new SqlParameter("@action_ip", SqlDbType.NVarChar, 50)
+                    {
+                        Value = string.IsNullOrWhiteSpace(actionIp) ? DBNull.Value : actionIp.Trim()
+                    });
+                    processedCount += await command.ExecuteNonQueryAsync();
+                }
+
+                await transaction.CommitAsync();
+                return processedCount;
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
+        }
+
         public Task<List<MessageTypeDto>> GetMessageTypesAsync()
         {
-            const string query = @"SELECT MesgTypeID, MesgTypeName
+            const string query = @"SELECT MesgTypeID, MesgTypeName, MsgAbbrCode
                                    FROM dbo.MessageType
                                    ORDER BY MesgTypeID;";
             DataTable dt = _dataAccess.GetDataTable(query, Array.Empty<SqlParameter>());
@@ -352,7 +440,8 @@ namespace SankalpAPI.Repository
                 messageTypes.Add(new MessageTypeDto
                 {
                     MesgTypeId = SafeLong(row, "MesgTypeID"),
-                    MesgTypeName = SafeString(row, "MesgTypeName") ?? string.Empty
+                    MesgTypeName = SafeString(row, "MesgTypeName") ?? string.Empty,
+                    MsgAbbrCode = SafeString(row, "MsgAbbrCode") ?? string.Empty
                 });
             }
 
@@ -430,7 +519,8 @@ namespace SankalpAPI.Repository
 
         public Task<BroadcastMessageDto?> GetBroadcastMessageByIdAsync(long bmsgId)
         {
-            const string query = @"SELECT Bmsg_id, MesgTypeID, message_head, message_body, validity_in_minutes, is_active, Portal_id, User_Type_ID, photo1path, photo2path, videopath, documentpath, entryby, entrydate, updatedby, updateddate, IsSynced, IsDeleted
+            const string query = @"SELECT Bmsg_id, MesgTypeID, message_head, message_body, validity_in_minutes, is_active, Portal_id, User_Type_ID, photo1path, photo2path, videopath, documentpath, entryby, entrydate, updatedby, updateddate, IsSynced, IsDeleted,
+                                          IsVerified, IsApproved
                                    FROM dbo.tbl_BroadCastMessage
                                    WHERE Bmsg_id = @bmsg_id;";
 
@@ -486,32 +576,77 @@ namespace SankalpAPI.Repository
             return Task.FromResult(exists);
         }
 
-        public Task<int> UpdateBroadcastVerifiedStatusAsync(long bmsgId, bool isVerified)
+        public Task<int> UpdateBroadcastVerifiedStatusAsync(
+            long bmsgId,
+            bool isVerified,
+            string? verifiedBy,
+            string? verifiedIp)
         {
             const string query = @"UPDATE dbo.tbl_BroadCastMessage
-                                   SET IsVerified = @is_verified
-                                   WHERE Bmsg_id = @bmsg_id;";
+                                   SET IsVerified = @is_verified,
+                                       entryby = CASE WHEN @is_verified = 'Y' THEN 'Approver' ELSE 'Maker' END,
+                                       IsApproved = 'N',
+                                       ApprovedBy = NULL,
+                                       ApprovedDate = NULL,
+                                       ApprovedIP = NULL,
+                                       VerifiedBy = @verified_by,
+                                       VerifiedDate = GETDATE(),
+                                       VerifiedIP = @verified_ip,
+                                       UpdatedBy = @verified_by,
+                                       UpdatedDate = GETDATE()
+                                   WHERE Bmsg_id = @bmsg_id
+                                     AND UPPER(ISNULL(NULLIF(LTRIM(RTRIM(IsApproved)), ''), 'N')) IN ('N', '0', 'FALSE')
+                                     AND UPPER(ISNULL(entryby, '')) IN ('CHECKER', 'CKR');";
 
             SqlParameter[] parameters =
             {
                 new SqlParameter("@bmsg_id", SqlDbType.BigInt) { Value = bmsgId },
-                new SqlParameter("@is_verified", SqlDbType.Bit) { Value = isVerified }
+                new SqlParameter("@is_verified", SqlDbType.Char, 1) { Value = isVerified ? "Y" : "N" },
+                new SqlParameter("@verified_by", SqlDbType.NVarChar, 255)
+                {
+                    Value = string.IsNullOrWhiteSpace(verifiedBy) ? "Checker" : verifiedBy.Trim()
+                },
+                new SqlParameter("@verified_ip", SqlDbType.NVarChar, 50)
+                {
+                    Value = string.IsNullOrWhiteSpace(verifiedIp) ? DBNull.Value : verifiedIp.Trim()
+                }
             };
 
             int rowsAffected = _dataAccess.ExecuteSql(query, parameters);
             return Task.FromResult(rowsAffected);
         }
 
-        public Task<int> UpdateBroadcastApprovedStatusAsync(long bmsgId, bool isApproved)
+        public Task<int> UpdateBroadcastApprovedStatusAsync(
+            long bmsgId,
+            bool isApproved,
+            string? approvedBy,
+            string? approvedIp)
         {
             const string query = @"UPDATE dbo.tbl_BroadCastMessage
-                                   SET IsApproved = @is_approved
-                                   WHERE Bmsg_id = @bmsg_id;";
+                                   SET IsApproved = @is_approved,
+                                       entryby = CASE WHEN @is_approved = 'Y' THEN 'Approved' ELSE 'Checker' END,
+                                       IsVerified = CASE WHEN @is_approved = 'Y' THEN 'Y' ELSE 'N' END,
+                                       ApprovedBy = @approved_by,
+                                       ApprovedDate = GETDATE(),
+                                       ApprovedIP = @approved_ip,
+                                       UpdatedBy = @approved_by,
+                                       UpdatedDate = GETDATE()
+                                   WHERE Bmsg_id = @bmsg_id
+                                     AND (@is_approved = 'Y' OR UPPER(ISNULL(NULLIF(LTRIM(RTRIM(IsApproved)), ''), 'N')) IN ('N', '0', 'FALSE'))
+                                     AND UPPER(ISNULL(entryby, '')) IN ('APPROVER', 'APR');";
 
             SqlParameter[] parameters =
             {
                 new SqlParameter("@bmsg_id", SqlDbType.BigInt) { Value = bmsgId },
-                new SqlParameter("@is_approved", SqlDbType.Bit) { Value = isApproved }
+                new SqlParameter("@is_approved", SqlDbType.Char, 1) { Value = isApproved ? "Y" : "N" },
+                new SqlParameter("@approved_by", SqlDbType.NVarChar, 255)
+                {
+                    Value = string.IsNullOrWhiteSpace(approvedBy) ? "Approver" : approvedBy.Trim()
+                },
+                new SqlParameter("@approved_ip", SqlDbType.NVarChar, 50)
+                {
+                    Value = string.IsNullOrWhiteSpace(approvedIp) ? DBNull.Value : approvedIp.Trim()
+                }
             };
 
             int rowsAffected = _dataAccess.ExecuteSql(query, parameters);

@@ -230,6 +230,34 @@ namespace SankalpAPI.Model
         [Newtonsoft.Json.JsonProperty("is_approved")]
         public bool? IsApproved { get; set; }
 
+        [System.Text.Json.Serialization.JsonPropertyName("is_all_district")]
+        [Newtonsoft.Json.JsonProperty("is_all_district")]
+        public string? IsAllDistrict { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("verified_by")]
+        [Newtonsoft.Json.JsonProperty("verified_by")]
+        public string? VerifiedBy { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("verified_date")]
+        [Newtonsoft.Json.JsonProperty("verified_date")]
+        public DateTime? VerifiedDate { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("verified_ip")]
+        [Newtonsoft.Json.JsonProperty("verified_ip")]
+        public string? VerifiedIP { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("approved_by")]
+        [Newtonsoft.Json.JsonProperty("approved_by")]
+        public string? ApprovedBy { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("approved_date")]
+        [Newtonsoft.Json.JsonProperty("approved_date")]
+        public DateTime? ApprovedDate { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("approved_ip")]
+        [Newtonsoft.Json.JsonProperty("approved_ip")]
+        public string? ApprovedIP { get; set; }
+
         /// <summary>
         /// If the message text contains structured JSON, it is parsed and exposed here as an object.
         /// </summary>
@@ -329,6 +357,10 @@ namespace SankalpAPI.Model
         [System.Text.Json.Serialization.JsonPropertyName("mesg_type_name")]
         [Newtonsoft.Json.JsonProperty("mesg_type_name")]
         public string MesgTypeName { get; set; } = string.Empty;
+
+        [System.Text.Json.Serialization.JsonPropertyName("msg_abbr_code")]
+        [Newtonsoft.Json.JsonProperty("msg_abbr_code")]
+        public string MsgAbbrCode { get; set; } = string.Empty;
     }
 
     public class InsertBroadcastMessageResponse
@@ -505,6 +537,32 @@ namespace SankalpAPI.Model
         [System.Text.Json.Serialization.JsonPropertyName("is_deleted")]
         [Newtonsoft.Json.JsonProperty("is_deleted")]
         public string? IsDeleted { get; set; }
+    }
+
+    public class ForwardDraftMessagesRequest
+    {
+        [JsonPropertyName("bmsg_ids")]
+        [JsonProperty("bmsg_ids")]
+        public List<long> BmsgIds { get; set; } = new();
+
+        [JsonPropertyName("user_role")]
+        [JsonProperty("user_role")]
+        public string? UserRole { get; set; }
+
+        [JsonPropertyName("action_by")]
+        [JsonProperty("action_by")]
+        public string? ActionBy { get; set; }
+
+        [JsonPropertyName("action_ip")]
+        [JsonProperty("action_ip")]
+        public string? ActionIP { get; set; }
+    }
+
+    public class ForwardDraftMessagesResponse
+    {
+        public bool Status { get; set; }
+        public string Message { get; set; } = string.Empty;
+        public int ProcessedCount { get; set; }
     }
 
     /// <summary>

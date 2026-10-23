@@ -19,7 +19,8 @@ namespace SankalpAPI.Interface
         Task<long> InsertInterestWiseMessageAsync(InsertInterestWiseMessageRequest request);
         Task<List<InterestWiseMessageDto>> GetInterestWiseMessagesAsync(long? interestId = null);
         Task<bool> BroadcastMessageExistsAsync(long bmsgId);
-        Task<int> UpdateBroadcastVerifiedStatusAsync(long bmsgId, bool isVerified);
-        Task<int> UpdateBroadcastApprovedStatusAsync(long bmsgId, bool isApproved);
+        Task<int> UpdateBroadcastVerifiedStatusAsync(long bmsgId, bool isVerified, string? verifiedBy, string? verifiedIp);
+        Task<int> UpdateBroadcastApprovedStatusAsync(long bmsgId, bool isApproved, string? approvedBy, string? approvedIp);
+        Task<int> ForwardDraftMessagesAsync(IReadOnlyCollection<long> bmsgIds, string userRole, string actionBy, string? actionIp);
     }
 }

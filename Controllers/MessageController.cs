@@ -153,6 +153,24 @@ namespace SankalpAPI.Controllers
             return Ok(result);
         }
 
+        [HttpPost("ForwardDraftMessages")]
+        [Consumes("application/json")]
+        [ProducesResponseType(typeof(ForwardDraftMessagesResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ForwardDraftMessagesResponse), StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> ForwardDraftMessages([FromBody] ForwardDraftMessagesRequest? request)
+        {
+            request ??= new ForwardDraftMessagesRequest();
+
+            string headerRole = Request.Headers["X-User-Role"].ToString();
+            string headerUserId = Request.Headers["X-User-Id"].ToString();
+            if (!string.IsNullOrWhiteSpace(headerRole)) request.UserRole = headerRole;
+            if (!string.IsNullOrWhiteSpace(headerUserId)) request.ActionBy = headerUserId;
+            request.ActionIP = HttpContext.Connection.RemoteIpAddress?.ToString();
+
+            var result = await _messageService.ForwardDraftMessagesAsync(request);
+            return result.Status ? Ok(result) : BadRequest(result);
+        }
+
         /// <summary>
         /// Updates the verification status (IsVerified) of a broadcast message in tbl_BroadCastMessage.
         /// </summary>
@@ -193,6 +211,13 @@ namespace SankalpAPI.Controllers
                     StatusCode = StatusCodes.Status400BadRequest,
                     Message = "A valid Bmsg_id greater than 0 is required."
                 });
+            }
+
+            string headerUserId = Request.Headers["X-User-Id"].ToString();
+            if (!string.IsNullOrWhiteSpace(headerUserId)) request.VerifiedBy = headerUserId;
+            if (string.IsNullOrWhiteSpace(request.VerifiedIP))
+            {
+                request.VerifiedIP = HttpContext.Connection.RemoteIpAddress?.ToString();
             }
 
             var result = await _messageService.UpdateBroadcastVerifiedAsync(request);
@@ -255,6 +280,13 @@ namespace SankalpAPI.Controllers
                     StatusCode = StatusCodes.Status400BadRequest,
                     Message = "A valid Bmsg_id greater than 0 is required."
                 });
+            }
+
+            string headerUserId = Request.Headers["X-User-Id"].ToString();
+            if (!string.IsNullOrWhiteSpace(headerUserId)) request.ApprovedBy = headerUserId;
+            if (string.IsNullOrWhiteSpace(request.ApprovedIP))
+            {
+                request.ApprovedIP = HttpContext.Connection.RemoteIpAddress?.ToString();
             }
 
             var result = await _messageService.UpdateBroadcastApprovedAsync(request);

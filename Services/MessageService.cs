@@ -378,6 +378,70 @@ namespace SankalpAPI.Services
             }
         }
 
+        public async Task<ForwardDraftMessagesResponse> ForwardDraftMessagesAsync(ForwardDraftMessagesRequest request)
+        {
+            string role = (request.UserRole ?? string.Empty).Trim().ToUpperInvariant();
+            if (role is not ("MKR" or "MAKER" or "CKR" or "CHECKER" or "APR" or "APPROVER"))
+            {
+                return new ForwardDraftMessagesResponse
+                {
+                    Status = false,
+                    Message = "Only Maker, Checker and Approver roles can forward draft messages."
+                };
+            }
+
+            request.BmsgIds = request.BmsgIds.Where(id => id > 0).Distinct().ToList();
+            if (request.BmsgIds.Count == 0)
+            {
+                return new ForwardDraftMessagesResponse
+                {
+                    Status = false,
+                    Message = "Select at least one message to forward."
+                };
+            }
+
+            if (string.IsNullOrWhiteSpace(request.ActionBy))
+            {
+                return new ForwardDraftMessagesResponse
+                {
+                    Status = false,
+                    Message = "The forwarding user is required."
+                };
+            }
+
+            try
+            {
+                int processedCount = await _messageRepository.ForwardDraftMessagesAsync(
+                    request.BmsgIds,
+                    role,
+                    request.ActionBy,
+                    request.ActionIP);
+
+                string destination = role is "MKR" or "MAKER"
+                    ? "Checker"
+                    : role is "CKR" or "CHECKER" ? "Approver" : "final approval";
+
+                return new ForwardDraftMessagesResponse
+                {
+                    Status = processedCount > 0,
+                    ProcessedCount = processedCount,
+                    Message = processedCount > 0
+                        ? $"{processedCount} message(s) forwarded to {destination} successfully."
+                        : "No eligible messages were forwarded. Refresh the grid and try again."
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error forwarding broadcast draft messages for role {Role}", role);
+                _exceptionLogging.SendErrorToText(ex);
+                return new ForwardDraftMessagesResponse
+                {
+                    Status = false,
+                    Message = "Unable to forward the selected messages."
+                };
+            }
+        }
+
         public async Task<UpdateBroadcastStatusResponse> UpdateBroadcastVerifiedAsync(UpdateBroadcastVerifiedRequest request)
         {
             if (request == null)
@@ -419,7 +483,11 @@ namespace SankalpAPI.Services
                     };
                 }
 
-                int rowsAffected = await _messageRepository.UpdateBroadcastVerifiedStatusAsync(request.Bmsg_id, request.IsVerified);
+                int rowsAffected = await _messageRepository.UpdateBroadcastVerifiedStatusAsync(
+                    request.Bmsg_id,
+                    request.IsVerified,
+                    request.VerifiedBy,
+                    request.VerifiedIP);
 
                 if (rowsAffected > 0)
                 {
@@ -432,7 +500,9 @@ namespace SankalpAPI.Services
                         StatusCode = 200,
                         Bmsg_id = request.Bmsg_id,
                         IsVerified = request.IsVerified,
-                        Message = $"Broadcast message verification status updated successfully to {(request.IsVerified ? "true" : "false")}."
+                        Message = request.IsVerified
+                            ? "Broadcast message verified and forwarded to Approver successfully."
+                            : "Broadcast message returned to Maker for correction."
                     };
                 }
 
@@ -441,7 +511,7 @@ namespace SankalpAPI.Services
                     Status = false,
                     StatusCode = 500,
                     Bmsg_id = request.Bmsg_id,
-                    Message = "Failed to update broadcast message verification status."
+                    Message = "This message is no longer pending in the Checker queue. Refresh the grid and try again."
                 };
             }
             catch (Exception ex)
@@ -500,7 +570,11 @@ namespace SankalpAPI.Services
                     };
                 }
 
-                int rowsAffected = await _messageRepository.UpdateBroadcastApprovedStatusAsync(request.Bmsg_id, request.IsApproved);
+                int rowsAffected = await _messageRepository.UpdateBroadcastApprovedStatusAsync(
+                    request.Bmsg_id,
+                    request.IsApproved,
+                    request.ApprovedBy,
+                    request.ApprovedIP);
 
                 if (rowsAffected > 0)
                 {
@@ -513,7 +587,9 @@ namespace SankalpAPI.Services
                         StatusCode = 200,
                         Bmsg_id = request.Bmsg_id,
                         IsApproved = request.IsApproved,
-                        Message = $"Broadcast message approval status updated successfully to {(request.IsApproved ? "true" : "false")}."
+                        Message = request.IsApproved
+                            ? "Broadcast message approved successfully."
+                            : "Broadcast message returned to Checker for correction."
                     };
                 }
 
@@ -522,7 +598,7 @@ namespace SankalpAPI.Services
                     Status = false,
                     StatusCode = 500,
                     Bmsg_id = request.Bmsg_id,
-                    Message = "Failed to update broadcast message approval status."
+                    Message = "This message is no longer pending in the Approver queue. Refresh the grid and try again."
                 };
             }
             catch (Exception ex)
