@@ -14,7 +14,16 @@ namespace SankalpAPI.Interface
         Task<PersonalizedMessageDto?> GetMessageByIdAsync(long msgId);
         Task<List<BroadcastMessageDto>> GetBroadcastMessagesAsync(string deviceId);
         Task<List<MessageTypeDto>> GetMessageTypesAsync();
+        Task<string?> GetMessageTypeAbbreviationAsync(long mesgTypeId);
         Task<long> InsertBroadcastMessageAsync(InsertBroadcastMessageRequest request);
+        Task<int> UpdateBroadcastAttachmentPathsAsync(
+            long bmsgId,
+            string? photo1Path,
+            string? photo2Path,
+            string? videoPath,
+            string? documentPath,
+            string? audioPath);
+        Task<int> DeleteBroadcastMessageAsync(long bmsgId);
         Task<BroadcastMessageDto?> GetBroadcastMessageByIdAsync(long bmsgId);
         Task<long> InsertInterestWiseMessageAsync(InsertInterestWiseMessageRequest request);
         Task<List<InterestWiseMessageDto>> GetInterestWiseMessagesAsync(long? interestId = null);

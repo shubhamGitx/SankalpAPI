@@ -132,6 +132,7 @@ builder.Services.AddScoped<TotpService>();
 builder.Services.AddScoped<IOtpService, OtpService>();
 builder.Services.AddScoped<OtpService>();
 builder.Services.AddScoped<MessageService>();
+builder.Services.AddScoped<BroadcastAttachmentStorageService>();
 builder.Services.AddScoped<PortalService>();
 builder.Services.AddScoped<IApplicantService, ApplicantService>();
 builder.Services.AddScoped<ApplicantService>();

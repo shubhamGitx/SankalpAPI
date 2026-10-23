@@ -193,6 +193,10 @@ namespace SankalpAPI.Model
         [Newtonsoft.Json.JsonProperty("documentpath")]
         public string? documentpath { get; set; }
 
+        [System.Text.Json.Serialization.JsonPropertyName("audiopath")]
+        [Newtonsoft.Json.JsonProperty("audiopath")]
+        public string? audiopath { get; set; }
+
         [System.Text.Json.Serialization.JsonPropertyName("entryby")]
         [Newtonsoft.Json.JsonProperty("entryby")]
         public string? EntryBy { get; set; }
@@ -327,6 +331,10 @@ namespace SankalpAPI.Model
         [Newtonsoft.Json.JsonProperty("documentpath")]
         public string? DocumentPath { get; set; }
 
+        [System.Text.Json.Serialization.JsonPropertyName("audiopath")]
+        [Newtonsoft.Json.JsonProperty("audiopath")]
+        public string? AudioPath { get; set; }
+
         [System.Text.Json.Serialization.JsonPropertyName("mesg_type_id")]
         [Newtonsoft.Json.JsonProperty("mesg_type_id")]
         public long? MesgTypeId { get; set; } = 1;
@@ -346,6 +354,36 @@ namespace SankalpAPI.Model
         [System.Text.Json.Serialization.JsonPropertyName("client_key")]
         [Newtonsoft.Json.JsonProperty("client_key")]
         public string? ClientKey { get; set; }
+    }
+
+    public class InsertBroadcastMessageWithAttachmentsRequest
+    {
+        [Microsoft.AspNetCore.Mvc.FromForm(Name = "message_head")]
+        public string? MessageHead { get; set; }
+
+        [Microsoft.AspNetCore.Mvc.FromForm(Name = "message_body")]
+        public string MessageBody { get; set; } = string.Empty;
+
+        [Microsoft.AspNetCore.Mvc.FromForm(Name = "mesg_type_id")]
+        public long? MesgTypeId { get; set; }
+
+        [Microsoft.AspNetCore.Mvc.FromForm(Name = "entryby")]
+        public string? EntryBy { get; set; }
+
+        [Microsoft.AspNetCore.Mvc.FromForm(Name = "photo1")]
+        public IFormFile? Photo1 { get; set; }
+
+        [Microsoft.AspNetCore.Mvc.FromForm(Name = "photo2")]
+        public IFormFile? Photo2 { get; set; }
+
+        [Microsoft.AspNetCore.Mvc.FromForm(Name = "video")]
+        public IFormFile? Video { get; set; }
+
+        [Microsoft.AspNetCore.Mvc.FromForm(Name = "document")]
+        public IFormFile? Document { get; set; }
+
+        [Microsoft.AspNetCore.Mvc.FromForm(Name = "audio")]
+        public IFormFile? Audio { get; set; }
     }
 
     public class MessageTypeDto

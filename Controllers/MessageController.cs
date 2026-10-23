@@ -153,6 +153,19 @@ namespace SankalpAPI.Controllers
             return Ok(result);
         }
 
+        [HttpPost("InsertBroadcastMessageWithAttachments")]
+        [Consumes("multipart/form-data")]
+        [RequestSizeLimit(55 * 1024 * 1024)]
+        [ProducesResponseType(typeof(InsertBroadcastMessageResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(InsertBroadcastMessageResponse), StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> InsertBroadcastMessageWithAttachments(
+            [FromForm] InsertBroadcastMessageWithAttachmentsRequest request,
+            CancellationToken cancellationToken)
+        {
+            var result = await _messageService.InsertBroadcastMessageWithAttachmentsAsync(request, cancellationToken);
+            return result.Status ? Ok(result) : BadRequest(result);
+        }
+
         [HttpPost("ForwardDraftMessages")]
         [Consumes("application/json")]
         [ProducesResponseType(typeof(ForwardDraftMessagesResponse), StatusCodes.Status200OK)]

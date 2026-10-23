@@ -292,7 +292,7 @@ namespace SankalpAPI.Repository
             var list = new List<BroadcastMessageDto>();
 
             const string query = @"SELECT B.Portal_id, B.User_Type_ID, B.Bmsg_id, B.message_head, B.message_body, B.validity_in_minutes, B.is_active, B.photo1path, B.photo2path, B.videopath,
-                                 B.documentpath, B.entryby, B.entrydate, B.updatedby, B.updateddate, B.IsSynced, B.IsDeleted, B.IsAllDistrict, B.MesgTypeID,
+                                 B.documentpath, B.audiopath, B.entryby, B.entrydate, B.updatedby, B.updateddate, B.IsSynced, B.IsDeleted, B.IsAllDistrict, B.MesgTypeID,
                                  B.IsVerified, B.VerifiedBy, B.VerifiedDate, B.VerifiedIP, B.IsApproved, B.ApprovedBy, B.ApprovedDate, B.ApprovedIP
                                  FROM   tbl_BroadCastMessage AS B                 
                                  WHERE  (B.is_active IS NULL OR B.is_active = 'Y' OR B.is_active = '1')              
@@ -327,6 +327,7 @@ namespace SankalpAPI.Repository
                     photo2path = SafeString(row, "photo2path"),
                     videopath = SafeString(row, "videopath"),
                     documentpath = SafeString(row, "documentpath"),
+                    audiopath = SafeString(row, "audiopath"),
                     EntryBy = SafeString(row, "entryby"),
                     EntryDate = SafeNullableDateTime(row, "entrydate"),
                     UpdatedBy = SafeString(row, "updatedby"),
@@ -448,11 +449,28 @@ namespace SankalpAPI.Repository
             return Task.FromResult(messageTypes);
         }
 
+        public Task<string?> GetMessageTypeAbbreviationAsync(long mesgTypeId)
+        {
+            const string query = @"SELECT TOP (1) MsgAbbrCode
+                                   FROM dbo.MessageType
+                                   WHERE MesgTypeID = @mesg_type_id;";
+            SqlParameter[] parameters =
+            {
+                new SqlParameter("@mesg_type_id", SqlDbType.BigInt) { Value = mesgTypeId }
+            };
+
+            DataTable dt = _dataAccess.GetDataTable(query, parameters);
+            string? abbreviation = dt.Rows.Count == 0
+                ? null
+                : SafeString(dt.Rows[0], "MsgAbbrCode")?.Trim();
+            return Task.FromResult(abbreviation);
+        }
+
         public async Task<long> InsertBroadcastMessageAsync(InsertBroadcastMessageRequest request)
         {
-            const string insertSql = @"INSERT INTO dbo.tbl_BroadCastMessage (message_head, message_body, validity_in_minutes, is_active, Portal_id, User_Type_ID, photo1path, photo2path, videopath, documentpath, MesgTypeID, entryby, entrydate, IsSynced, IsDeleted, IsAllDistrict)
+            const string insertSql = @"INSERT INTO dbo.tbl_BroadCastMessage (message_head, message_body, validity_in_minutes, is_active, Portal_id, User_Type_ID, photo1path, photo2path, videopath, documentpath, audiopath, MesgTypeID, entryby, entrydate, IsSynced, IsDeleted, IsAllDistrict)
                                        OUTPUT INSERTED.Bmsg_id
-                                       VALUES (@message_head, @message_body, @validity_in_minutes, @is_active, @portal_id, @user_type_id, @photo1path, @photo2path, @videopath, @documentpath, @mesg_type_id, @entryby, GETDATE(), 'N','N', @is_all_district);";
+                                       VALUES (@message_head, @message_body, @validity_in_minutes, @is_active, @portal_id, @user_type_id, @photo1path, @photo2path, @videopath, @documentpath, @audiopath, @mesg_type_id, @entryby, GETDATE(), 'N','N', @is_all_district);";
 
             string activeVal = string.IsNullOrWhiteSpace(request.IsActive) ? "Y" : request.IsActive.Trim().Substring(0, 1).ToUpperInvariant();
 
@@ -479,6 +497,7 @@ namespace SankalpAPI.Repository
                         new SqlParameter("@photo2path", SqlDbType.NVarChar, -1) { Value = string.IsNullOrWhiteSpace(request.Photo2Path) ? (object)DBNull.Value : request.Photo2Path.Trim() },
                         new SqlParameter("@videopath", SqlDbType.NVarChar, -1) { Value = string.IsNullOrWhiteSpace(request.VideoPath) ? (object)DBNull.Value : request.VideoPath.Trim() },
                         new SqlParameter("@documentpath", SqlDbType.NVarChar, -1) { Value = string.IsNullOrWhiteSpace(request.DocumentPath) ? (object)DBNull.Value : request.DocumentPath.Trim() },
+                        new SqlParameter("@audiopath", SqlDbType.NVarChar, -1) { Value = string.IsNullOrWhiteSpace(request.AudioPath) ? (object)DBNull.Value : request.AudioPath.Trim() },
                         new SqlParameter("@mesg_type_id", SqlDbType.BigInt) { Value = request.MesgTypeId.HasValue && request.MesgTypeId.Value > 0 ? request.MesgTypeId.Value : 1 },
                         new SqlParameter("@entryby", SqlDbType.NVarChar, 255) { Value = string.IsNullOrWhiteSpace(request.EntryBy) ? "Admin" : request.EntryBy.Trim() }
                     });
@@ -517,9 +536,50 @@ namespace SankalpAPI.Repository
             }
         }
 
+        public Task<int> UpdateBroadcastAttachmentPathsAsync(
+            long bmsgId,
+            string? photo1Path,
+            string? photo2Path,
+            string? videoPath,
+            string? documentPath,
+            string? audioPath)
+        {
+            const string query = @"UPDATE dbo.tbl_BroadCastMessage
+                                   SET photo1path = @photo1path,
+                                       photo2path = @photo2path,
+                                       videopath = @videopath,
+                                       documentpath = @documentpath,
+                                       audiopath = @audiopath,
+                                       updateddate = GETDATE()
+                                   WHERE Bmsg_id = @bmsg_id;";
+            SqlParameter[] parameters =
+            {
+                new SqlParameter("@bmsg_id", SqlDbType.BigInt) { Value = bmsgId },
+                new SqlParameter("@photo1path", SqlDbType.NVarChar, -1) { Value = string.IsNullOrWhiteSpace(photo1Path) ? DBNull.Value : photo1Path },
+                new SqlParameter("@photo2path", SqlDbType.NVarChar, -1) { Value = string.IsNullOrWhiteSpace(photo2Path) ? DBNull.Value : photo2Path },
+                new SqlParameter("@videopath", SqlDbType.NVarChar, -1) { Value = string.IsNullOrWhiteSpace(videoPath) ? DBNull.Value : videoPath },
+                new SqlParameter("@documentpath", SqlDbType.NVarChar, -1) { Value = string.IsNullOrWhiteSpace(documentPath) ? DBNull.Value : documentPath },
+                new SqlParameter("@audiopath", SqlDbType.NVarChar, -1) { Value = string.IsNullOrWhiteSpace(audioPath) ? DBNull.Value : audioPath }
+            };
+
+            return Task.FromResult(_dataAccess.ExecuteSql(query, parameters));
+        }
+
+        public Task<int> DeleteBroadcastMessageAsync(long bmsgId)
+        {
+            const string query = @"DELETE FROM dbo.tbl_BroadCastMessage
+                                   WHERE Bmsg_id = @bmsg_id;";
+            SqlParameter[] parameters =
+            {
+                new SqlParameter("@bmsg_id", SqlDbType.BigInt) { Value = bmsgId }
+            };
+
+            return Task.FromResult(_dataAccess.ExecuteSql(query, parameters));
+        }
+
         public Task<BroadcastMessageDto?> GetBroadcastMessageByIdAsync(long bmsgId)
         {
-            const string query = @"SELECT Bmsg_id, MesgTypeID, message_head, message_body, validity_in_minutes, is_active, Portal_id, User_Type_ID, photo1path, photo2path, videopath, documentpath, entryby, entrydate, updatedby, updateddate, IsSynced, IsDeleted,
+            const string query = @"SELECT Bmsg_id, MesgTypeID, message_head, message_body, validity_in_minutes, is_active, Portal_id, User_Type_ID, photo1path, photo2path, videopath, documentpath, audiopath, entryby, entrydate, updatedby, updateddate, IsSynced, IsDeleted,
                                           IsVerified, IsApproved
                                    FROM dbo.tbl_BroadCastMessage
                                    WHERE Bmsg_id = @bmsg_id;";
@@ -550,6 +610,7 @@ namespace SankalpAPI.Repository
                 photo2path = SafeString(row, "photo2path"),
                 videopath = SafeString(row, "videopath"),
                 documentpath = SafeString(row, "documentpath"),
+                audiopath = SafeString(row, "audiopath"),
                 EntryBy = SafeString(row, "entryby"),
                 EntryDate = SafeNullableDateTime(row, "entrydate"),
                 UpdatedBy = SafeString(row, "updatedby"),

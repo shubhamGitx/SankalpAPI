@@ -15,13 +15,20 @@ namespace SankalpAPI.Services
         private readonly IPortalRepository _portalRepository;
         private readonly ILogger<MessageService> _logger;
         private readonly ExceptionLogging _exceptionLogging;
+        private readonly BroadcastAttachmentStorageService _attachmentStorage;
 
-        public MessageService(IMessageRepository messageRepository, IPortalRepository portalRepository, ILogger<MessageService> logger, ExceptionLogging exceptionLogging)
+        public MessageService(
+            IMessageRepository messageRepository,
+            IPortalRepository portalRepository,
+            ILogger<MessageService> logger,
+            ExceptionLogging exceptionLogging,
+            BroadcastAttachmentStorageService attachmentStorage)
         {
             _messageRepository = messageRepository;
             _portalRepository = portalRepository;
             _logger = logger;
             _exceptionLogging = exceptionLogging;
+            _attachmentStorage = attachmentStorage;
         }
 
         public async Task<GetUnsyncedMessagesResponse> GetUnsyncedMessagesAsync(GetUnsyncedMessagesRequest request)
@@ -293,12 +300,24 @@ namespace SankalpAPI.Services
             string messageHead = DecryptIfNeeded(request.MessageHead ?? string.Empty, request.ClientKey);
             string messageBody = DecryptIfNeeded(request.MessageBody ?? string.Empty, request.ClientKey);
 
-            if (string.IsNullOrWhiteSpace(messageBody))
+            messageHead = messageHead.Trim();
+            messageBody = messageBody.Trim();
+
+            if (messageHead.Length < 3)
             {
                 return new InsertBroadcastMessageResponse
                 {
                     Status = false,
-                    Message = "Message body is required."
+                    Message = "Notice title must contain at least 3 characters."
+                };
+            }
+
+            if (messageBody.Length < 10)
+            {
+                return new InsertBroadcastMessageResponse
+                {
+                    Status = false,
+                    Message = "Message body must contain at least 10 characters."
                 };
             }
 
@@ -339,6 +358,9 @@ namespace SankalpAPI.Services
             if (!string.IsNullOrWhiteSpace(request.DocumentPath))
                 request.DocumentPath = DecryptIfNeeded(request.DocumentPath, request.ClientKey);
 
+            if (!string.IsNullOrWhiteSpace(request.AudioPath))
+                request.AudioPath = DecryptIfNeeded(request.AudioPath, request.ClientKey);
+
             if (!string.IsNullOrWhiteSpace(request.EntryBy))
                 request.EntryBy = DecryptIfNeeded(request.EntryBy, request.ClientKey);
 
@@ -374,6 +396,169 @@ namespace SankalpAPI.Services
                 {
                     Status = false,
                     Message = "An error occurred while inserting broadcast message."
+                };
+            }
+        }
+
+        public async Task<InsertBroadcastMessageResponse> InsertBroadcastMessageWithAttachmentsAsync(
+            InsertBroadcastMessageWithAttachmentsRequest form,
+            CancellationToken cancellationToken)
+        {
+            var storedAttachments = new List<StoredBroadcastAttachment>();
+            long? insertedBmsgId = null;
+
+            async Task RollBackInsertAsync()
+            {
+                storedAttachments.ForEach(_attachmentStorage.DeleteIfExists);
+
+                if (!insertedBmsgId.HasValue)
+                    return;
+
+                try
+                {
+                    await _messageRepository.DeleteBroadcastMessageAsync(insertedBmsgId.Value);
+                }
+                catch (Exception cleanupException)
+                {
+                    _logger.LogError(
+                        cleanupException,
+                        "Unable to remove broadcast message {BmsgId} after attachment storage failed",
+                        insertedBmsgId.Value);
+                }
+            }
+
+            try
+            {
+                if (!form.MesgTypeId.HasValue || form.MesgTypeId.Value <= 0)
+                {
+                    return new InsertBroadcastMessageResponse
+                    {
+                        Status = false,
+                        Message = "Select a valid message type."
+                    };
+                }
+
+                if (form.Photo1 != null) _attachmentStorage.Validate(form.Photo1, "photo");
+                if (form.Photo2 != null) _attachmentStorage.Validate(form.Photo2, "photo");
+                if (form.Video != null) _attachmentStorage.Validate(form.Video, "video");
+                if (form.Document != null) _attachmentStorage.Validate(form.Document, "document");
+                if (form.Audio != null) _attachmentStorage.Validate(form.Audio, "audio");
+
+                string? storedAbbreviation = await _messageRepository.GetMessageTypeAbbreviationAsync(
+                    form.MesgTypeId.Value);
+                string abbreviation = new((storedAbbreviation ?? string.Empty)
+                    .Trim()
+                    .ToUpperInvariant()
+                    .Where(char.IsLetterOrDigit)
+                    .ToArray());
+
+                if (string.IsNullOrWhiteSpace(abbreviation))
+                {
+                    return new InsertBroadcastMessageResponse
+                    {
+                        Status = false,
+                        Message = "The selected message type does not have a valid abbreviation code."
+                    };
+                }
+
+                var request = new InsertBroadcastMessageRequest
+                {
+                    MessageHead = form.MessageHead,
+                    MessageBody = form.MessageBody,
+                    MesgTypeId = form.MesgTypeId,
+                    EntryBy = form.EntryBy,
+                    IsAllDistrict = true,
+                    IsActive = "Y",
+                    ValidityInMinutes = 60
+                };
+
+                InsertBroadcastMessageResponse insertResult = await InsertBroadcastMessageAsync(request);
+                if (!insertResult.Status || !insertResult.Bmsg_id.HasValue)
+                    return insertResult;
+
+                insertedBmsgId = insertResult.Bmsg_id.Value;
+                string filePrefix = $"{abbreviation}_{insertedBmsgId.Value:D8}";
+
+                StoredBroadcastAttachment? photo1 = form.Photo1 == null
+                    ? null
+                    : await _attachmentStorage.SaveAsync(
+                        form.Photo1,
+                        "photo",
+                        $"{filePrefix}_P01",
+                        cancellationToken);
+                if (photo1 != null) storedAttachments.Add(photo1);
+
+                StoredBroadcastAttachment? photo2 = form.Photo2 == null
+                    ? null
+                    : await _attachmentStorage.SaveAsync(
+                        form.Photo2,
+                        "photo",
+                        $"{filePrefix}_P02",
+                        cancellationToken);
+                if (photo2 != null) storedAttachments.Add(photo2);
+
+                StoredBroadcastAttachment? video = form.Video == null
+                    ? null
+                    : await _attachmentStorage.SaveAsync(
+                        form.Video,
+                        "video",
+                        $"{filePrefix}_V01",
+                        cancellationToken);
+                if (video != null) storedAttachments.Add(video);
+
+                StoredBroadcastAttachment? document = form.Document == null
+                    ? null
+                    : await _attachmentStorage.SaveAsync(
+                        form.Document,
+                        "document",
+                        $"{filePrefix}_D01",
+                        cancellationToken);
+                if (document != null) storedAttachments.Add(document);
+
+                StoredBroadcastAttachment? audio = form.Audio == null
+                    ? null
+                    : await _attachmentStorage.SaveAsync(
+                        form.Audio,
+                        "audio",
+                        $"{filePrefix}_A01",
+                        cancellationToken);
+                if (audio != null) storedAttachments.Add(audio);
+
+                int rowsUpdated = await _messageRepository.UpdateBroadcastAttachmentPathsAsync(
+                    insertedBmsgId.Value,
+                    photo1?.RelativePath,
+                    photo2?.RelativePath,
+                    video?.RelativePath,
+                    document?.RelativePath,
+                    audio?.RelativePath);
+
+                if (rowsUpdated != 1)
+                    throw new InvalidOperationException("Unable to update the stored attachment paths.");
+
+                BroadcastMessageDto? savedMessage = await _messageRepository.GetBroadcastMessageByIdAsync(
+                    insertedBmsgId.Value);
+                return new InsertBroadcastMessageResponse
+                {
+                    Status = true,
+                    Message = "Broadcast message and attachments saved successfully.",
+                    Bmsg_id = insertedBmsgId.Value,
+                    Data = savedMessage
+                };
+            }
+            catch (InvalidDataException ex)
+            {
+                await RollBackInsertAsync();
+                return new InsertBroadcastMessageResponse { Status = false, Message = ex.Message };
+            }
+            catch (Exception ex)
+            {
+                await RollBackInsertAsync();
+                _logger.LogError(ex, "Error uploading broadcast message attachments");
+                _exceptionLogging.SendErrorToText(ex);
+                return new InsertBroadcastMessageResponse
+                {
+                    Status = false,
+                    Message = "Unable to upload one or more attachments."
                 };
             }
         }
