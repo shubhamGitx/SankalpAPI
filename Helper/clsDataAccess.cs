@@ -55,6 +55,16 @@ namespace SankalpAPI.Helper
             return dt;
         }
 
+        private static void AttachParameters(SqlCommand cmd, SqlParameter[]? parameters)
+        {
+            if (parameters == null || parameters.Length == 0) return;
+            foreach (var p in parameters)
+            {
+                if (p == null) continue;
+                cmd.Parameters.Add((SqlParameter)((ICloneable)p).Clone());
+            }
+        }
+
         // ============================================================
         // GET DATATABLE WITH PARAMETERS
         // ============================================================
@@ -69,10 +79,7 @@ namespace SankalpAPI.Helper
                 {
                     cmd.CommandTimeout = 120;
 
-                    if (parameters != null && parameters.Length > 0)
-                    {
-                        cmd.Parameters.AddRange(parameters);
-                    }
+                    AttachParameters(cmd, parameters);
 
                     using (var da = new SqlDataAdapter(cmd))
                     {
@@ -105,10 +112,7 @@ namespace SankalpAPI.Helper
                     cmd.CommandType = CommandType.StoredProcedure;
                     cmd.CommandTimeout = 120;
 
-                    if (parameters != null && parameters.Length > 0)
-                    {
-                        cmd.Parameters.AddRange(parameters);
-                    }
+                    AttachParameters(cmd, parameters);
 
                     using (var da = new SqlDataAdapter(cmd))
                     {
@@ -138,10 +142,7 @@ namespace SankalpAPI.Helper
                 {
                     cmd.CommandTimeout = 120;
 
-                    if (parameters != null && parameters.Length > 0)
-                    {
-                        cmd.Parameters.AddRange(parameters);
-                    }
+                    AttachParameters(cmd, parameters);
 
                     con.Open();
 
@@ -168,10 +169,7 @@ namespace SankalpAPI.Helper
                     cmd.CommandType = CommandType.StoredProcedure;
                     cmd.CommandTimeout = 120;
 
-                    if (parameters != null && parameters.Length > 0)
-                    {
-                        cmd.Parameters.AddRange(parameters);
-                    }
+                    AttachParameters(cmd, parameters);
 
                     con.Open();
 
@@ -197,10 +195,7 @@ namespace SankalpAPI.Helper
                 {
                     cmd.CommandTimeout = 120;
 
-                    if (parameters != null && parameters.Length > 0)
-                    {
-                        cmd.Parameters.AddRange(parameters);
-                    }
+                    AttachParameters(cmd, parameters);
 
                     con.Open();
 
@@ -227,10 +222,7 @@ namespace SankalpAPI.Helper
                     cmd.CommandType = CommandType.StoredProcedure;
                     cmd.CommandTimeout = 120;
 
-                    if (parameters != null && parameters.Length > 0)
-                    {
-                        cmd.Parameters.AddRange(parameters);
-                    }
+                    AttachParameters(cmd, parameters);
 
                     con.Open();
 
