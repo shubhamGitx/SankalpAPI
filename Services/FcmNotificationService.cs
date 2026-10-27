@@ -11,15 +11,18 @@ namespace SankalpAPI.Services
         private readonly IUserRepository _userRepository;
         private readonly ILogger<FcmNotificationService> _logger;
         private readonly ExceptionLogging _exceptionLogging;
+        private readonly FcmMessageFactory _messageFactory;
 
         public FcmNotificationService(
             IUserRepository userRepository,
             ILogger<FcmNotificationService> logger,
-            ExceptionLogging exceptionLogging)
+            ExceptionLogging exceptionLogging,
+            FcmMessageFactory messageFactory)
         {
             _userRepository = userRepository;
             _logger = logger;
             _exceptionLogging = exceptionLogging;
+            _messageFactory = messageFactory;
         }
 
         public async Task<ServiceResult<SendUserNotificationResponse>> SendToUserAsync(
@@ -87,22 +90,12 @@ namespace SankalpAPI.Services
                 var multicastMessage = new MulticastMessage
                 {
                     Tokens = tokens,
-                    Notification = new Notification
-                    {
-                        Title = request.Title.Trim(),
-                        Body = request.Body.Trim(),
-                        ImageUrl = string.IsNullOrWhiteSpace(request.ImageUrl) ? null : request.ImageUrl.Trim()
-                    },
+                    Notification = _messageFactory.CreateNotification(
+                        request.Title,
+                        request.Body,
+                        request.ImageUrl),
                     Data = dataPayload,
-                    Android = new AndroidConfig
-                    {
-                        Priority = Priority.High,
-                        Notification = new AndroidNotification
-                        {
-                            ChannelId = "high_importance_channel",
-                            Sound = "default"
-                        }
-                    }
+                    Android = _messageFactory.CreateAndroidConfig()
                 };
 
                 BatchResponse batchResponse = await FirebaseMessaging.DefaultInstance

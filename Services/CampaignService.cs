@@ -386,6 +386,8 @@ namespace SankalpAPI.Services
                 ["campaignName"] = campaign.CampaignName,
                 ["bmsgId"] = campaign.BmsgId.ToString(),
                 ["portalId"] = campaign.PortalId?.ToString() ?? "",
+                ["portalName"] = campaign.PortalName ?? "Sankalp",
+                ["portal_name"] = campaign.PortalName ?? "Sankalp",
                 ["photo1"] = campaign.Photo1Path ?? "",
                 ["photo2"] = campaign.Photo2Path ?? "",
                 ["video"] = campaign.VideoPath ?? "",

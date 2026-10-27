@@ -18,22 +18,23 @@ namespace SankalpAPI.Services
         private readonly IConfiguration _configuration;
         private readonly ILogger<FirebaseNotificationService> _logger;
         private readonly ICampaignRepository _campaignRepository;
+        private readonly FcmMessageFactory _messageFactory;
         private static readonly object _initLock = new();
         private static bool _isFirebaseInitialized = false;
         private readonly bool _simulateIfNoCredentials;
-        private readonly string? _channelId;
 
         public FirebaseNotificationService(
             IConfiguration configuration,
             ILogger<FirebaseNotificationService> logger,
-            ICampaignRepository campaignRepository)
+            ICampaignRepository campaignRepository,
+            FcmMessageFactory messageFactory)
         {
             _configuration = configuration;
             _logger = logger;
             _campaignRepository = campaignRepository;
+            _messageFactory = messageFactory;
 
-            _simulateIfNoCredentials = _configuration.GetValue<bool>("FirebaseSettings:SimulateIfNoCredentials", true);
-            _channelId = _configuration.GetValue<string>("FirebaseSettings:DefaultChannelId") ?? "sankalp_campaign_channel";
+            _simulateIfNoCredentials = _configuration.GetValue<bool>("Firebase:SimulateIfNoCredentials", true);
 
             EnsureFirebaseAppInitialized();
         }
@@ -56,8 +57,8 @@ namespace SankalpAPI.Services
 
                 try
                 {
-                    string credentialPath = _configuration.GetValue<string>("FirebaseSettings:CredentialPath") ?? "firebase-service-account.json";
-                    string projectId = _configuration.GetValue<string>("FirebaseSettings:ProjectId") ?? "sankalp-bihar";
+                    string credentialPath = _configuration.GetValue<string>("Firebase:ServiceAccountKeyPath") ?? "firebase-service-account.json";
+                    string projectId = _configuration.GetValue<string>("Firebase:ProjectId") ?? "sankalp-bihar";
 
                     string resolvedPath = Path.IsPathRooted(credentialPath)
                         ? credentialPath
@@ -163,9 +164,23 @@ namespace SankalpAPI.Services
             var safeData = new Dictionary<string, string>(dataPayload ?? new Dictionary<string, string>())
             {
                 ["campaignId"] = campaignId.ToString(),
+                ["campaign_id"] = campaignId.ToString(),
                 ["bmsgId"] = bmsgId.ToString(),
+                ["bmsg_id"] = bmsgId.ToString(),
+                ["msg_id"] = bmsgId.ToString(),
+                ["title"] = title,
+                ["body"] = body,
                 ["sentAt"] = DateTime.UtcNow.ToString("o")
             };
+
+            safeData.TryGetValue("photo1", out string? imagePath);
+            string? imageUrl = _messageFactory.ResolvePublicUrl(imagePath);
+            if (!string.IsNullOrWhiteSpace(imageUrl))
+            {
+                safeData["photo1"] = imageUrl;
+                safeData["image"] = imageUrl;
+                safeData["imageUrl"] = imageUrl;
+            }
 
             // If Firebase is initialized, send via FirebaseAdmin SDK
             if (_isFirebaseInitialized && FirebaseMessaging.DefaultInstance != null)
@@ -176,21 +191,9 @@ namespace SankalpAPI.Services
                     var multicastMessage = new MulticastMessage
                     {
                         Tokens = tokens,
-                        Notification = new Notification
-                        {
-                            Title = title,
-                            Body = body
-                        },
+                        Notification = _messageFactory.CreateNotification(title, body, imageUrl),
                         Data = safeData,
-                        Android = new AndroidConfig
-                        {
-                            Priority = Priority.High,
-                            Notification = new AndroidNotification
-                            {
-                                ChannelId = _channelId,
-                                ClickAction = "OPEN_CAMPAIGN_NOTIFICATION"
-                            }
-                        }
+                        Android = _messageFactory.CreateAndroidConfig()
                     };
 
                     BatchResponse response = await FirebaseMessaging.DefaultInstance.SendEachForMulticastAsync(multicastMessage);

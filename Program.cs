@@ -139,6 +139,7 @@ builder.Services.AddScoped<ApplicantService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<DashboardService>();
 builder.Services.AddScoped<GroupService>();
+builder.Services.AddScoped<FcmMessageFactory>();
 builder.Services.AddScoped<IFcmNotificationService, FcmNotificationService>();
 builder.Services.AddScoped<IFirebaseNotificationService, FirebaseNotificationService>();
 builder.Services.AddScoped<ICampaignService, CampaignService>();
