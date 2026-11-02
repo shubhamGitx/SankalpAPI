@@ -9,6 +9,10 @@ namespace SankalpAPI.Model
     /// </summary>
     public class ApplicantRequest
     {
+        [JsonPropertyName("client_key")]
+        [JsonProperty("client_key")]
+        public string ClientKey { get; set; } = string.Empty;
+
         /// <summary>
         /// Portal identifier from mst_portal table.
         /// </summary>
@@ -170,6 +174,22 @@ namespace SankalpAPI.Model
         [System.Text.Json.Serialization.JsonIgnore]
         [Newtonsoft.Json.JsonIgnore]
         public int StatusCode { get; set; } = 200;
+
+        [System.Text.Json.Serialization.JsonIgnore]
+        [Newtonsoft.Json.JsonIgnore]
+        public Dictionary<string, string> ResponseHeaders { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Encrypted request envelope used by the Sankalp applicant-list endpoint.
+    /// The value of <see cref="Data"/> is encrypted in the browser with the
+    /// client AES key obtained during the OTP flow.
+    /// </summary>
+    public class SankalpApplicantLookupRequest
+    {
+        [JsonPropertyName("data")]
+        [JsonProperty("data")]
+        public string Data { get; set; } = string.Empty;
     }
 
     /// <summary>
@@ -197,6 +217,14 @@ namespace SankalpAPI.Model
     /// </summary>
     public class VerifyOtpRequest
     {
+        [System.Text.Json.Serialization.JsonIgnore]
+        [Newtonsoft.Json.JsonIgnore]
+        public bool OtpOnlyForward { get; set; }
+
+        [System.Text.Json.Serialization.JsonIgnore]
+        [Newtonsoft.Json.JsonIgnore]
+        public string OtpId { get; set; } = string.Empty;
+
         private long _portalId = 1;
         private bool _portalIdExplicitlySet;
 

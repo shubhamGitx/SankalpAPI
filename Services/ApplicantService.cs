@@ -26,8 +26,10 @@ namespace SankalpAPI.Services
     /// </summary>
     public class ApplicantService : IApplicantService
     {
-        private const string SendOtpEndpoint = "/api/Beneficiary/send-otp";
-        private const string VerifyOtpEndpoint = "/api/Beneficiary/verify-otp";
+        private const string SendOtpEndpoint = "/api/Sankalp/send-otp";
+        private const string VerifyOtpEndpoint = "/api/Sankalp/verify-otp";
+        private const string GetApplicantListEndpoint = "/api/Sankalp/GetApplicantList";
+        private const string GetApplicantFullDetailsEndpoint = "/api/Sankalp/GetApplicantDetails";
         private const string GetBeneficiaryMessagesEndpoint = "/api/Beneficiary/Get_Beneficiary_Messages";
         private const string Get_Beneficiary_Status = "/api/Beneficiary/Get_Beneficiary_Status";
         private const string DefaultPortalUrl = "http://10.133.20.151/eLabharthi";
@@ -44,6 +46,7 @@ namespace SankalpAPI.Services
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly ILogger<ApplicantService> _logger;
         private readonly ExceptionLogging _exceptionLogging;
+        private readonly IConfiguration _configuration;
 
         public ApplicantService(
             IPortalRepository portalRepository, 
@@ -52,7 +55,8 @@ namespace SankalpAPI.Services
             ClientTokenService clientTokenService,
             IHttpClientFactory httpClientFactory, 
             ILogger<ApplicantService> logger, 
-            ExceptionLogging exceptionLogging)
+            ExceptionLogging exceptionLogging,
+            IConfiguration configuration)
         {
             _portalRepository = portalRepository;
             _applicantRepository = applicantRepository;
@@ -61,6 +65,7 @@ namespace SankalpAPI.Services
             _httpClientFactory = httpClientFactory;
             _logger = logger;
             _exceptionLogging = exceptionLogging;
+            _configuration = configuration;
         }
 
         public async Task<ApplicantResponse> GetApplicantDetailsAsync(ApplicantRequest request, CancellationToken cancellationToken = default)
@@ -74,6 +79,19 @@ namespace SankalpAPI.Services
                     Message = "Request payload is required.",
                     Data = null
                 };
+            }
+
+            string aesKey;
+            try
+            {
+                aesKey = RSA_Enc_Dec.Decryption(request.ClientKey);
+                if (Encoding.UTF8.GetByteCount(aesKey) is not (16 or 24 or 32))
+                    throw new CryptographicException("Invalid AES key length.");
+            }
+            catch (Exception)
+            {
+                return new ApplicantResponse { Status = false, StatusCode = 400,
+                    Message = "A valid RSA-encrypted client_key is required.", Data = null };
             }
 
             string mobileNo = NormalizeMobileNumber(request.MobileNo);
@@ -171,14 +189,13 @@ namespace SankalpAPI.Services
                 // Correlation ID for distributed tracing
                 httpRequest.Headers.TryAddWithoutValidation("X-Correlation-ID", Guid.NewGuid().ToString("N"));
 
-                // Prepare forwarded payload matching external API expected schema: { portType, mobileNo, deviceId, session }
                 var forwardPayload = new Dictionary<string, object?>
                 {
-                    ["portalId"] = request.PortalId,
-                    ["mobileNo"] = request.MobileNo,
-                    ["deviceId"] = request.DeviceId,
-                    ["session"] = request.Session,
-                    ["userType"] = request.UserType
+                    ["clientKey"] = request.ClientKey,
+                    ["portalId"] = Aes256CbcEncrypterApp.Encrypt(request.PortalId.ToString(System.Globalization.CultureInfo.InvariantCulture), aesKey),
+                    ["mobile"] = Aes256CbcEncrypterApp.Encrypt(mobileNo, aesKey),
+                    ["deviceId"] = Aes256CbcEncrypterApp.Encrypt(deviceId, aesKey),
+                    ["userType"] = Aes256CbcEncrypterApp.Encrypt(userType, aesKey)
                 };
 
                 string jsonContent = JsonConvert.SerializeObject(forwardPayload);
@@ -194,7 +211,6 @@ namespace SankalpAPI.Services
                 using var response = await client.SendAsync(httpRequest, cancellationToken);
                 string responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
                 int statusCode = (int)response.StatusCode;
-
                 _logger.LogInformation("External portal response received with status code {StatusCode}", statusCode);
 
                 // 8. Handle HTTP Response
@@ -363,7 +379,18 @@ namespace SankalpAPI.Services
             }
 
             // 1. Decrypt parameters if encrypted
-            string clientKey = DecryptClientKey(request.ClientKey);
+            string clientKey;
+            try
+            {
+                clientKey = RSA_Enc_Dec.Decryption(request.ClientKey ?? string.Empty);
+                if (Encoding.UTF8.GetByteCount(clientKey) is not (16 or 24 or 32))
+                    throw new CryptographicException("Invalid AES key length.");
+            }
+            catch (Exception)
+            {
+                return new ApplicantResponse { Status = false, StatusCode = 400,
+                    Message = "A valid RSA-encrypted client_key is required.", Data = null };
+            }
             string rawMobile = request.ResolveMobileNo();
             string? rawDevice = request.ResolveDeviceId();
             string? rawUserType = request.ResolveUserType();
@@ -500,16 +527,9 @@ namespace SankalpAPI.Services
                     }
                 }
 
-                if (aIdList.Count == 0)
-                {
-                    return new ApplicantResponse
-                    {
-                        Status = false,
-                        StatusCode = (int)HttpStatusCode.BadRequest,
-                        Message = "A_Id is required. Please provide a_Id or ensure applicant details were fetched first.",
-                        Data = null
-                    };
-                }
+                if (!request.OtpOnlyForward && aIdList.Count == 0)
+                    return new ApplicantResponse { Status = false, StatusCode = 400,
+                        Message = "A_Id is required. Please provide a_Id or ensure applicant details were fetched first." };
 
                 if (string.IsNullOrWhiteSpace(session))
                 {
@@ -560,12 +580,17 @@ namespace SankalpAPI.Services
 
                 var forwardPayload = new Dictionary<string, object?>
                 {
-                    ["a_Id"] = aIdList,
-                    ["mobileNo"] = mobileNo,
-                    ["otp"] = otp,
-                    ["deviceId"] = deviceId,
-                    ["session"] = session
+                    ["clientKey"] = request.ClientKey,
+                    ["otpId"] = Aes256CbcEncrypterApp.Encrypt(request.OtpId, clientKey),
+                    ["otp"] = Aes256CbcEncrypterApp.Encrypt(otp, clientKey),
+                    ["mobileNo"] = Aes256CbcEncrypterApp.Encrypt(mobileNo, clientKey)
                 };
+                if (!request.OtpOnlyForward)
+                {
+                    forwardPayload["a_Id"] = aIdList;
+                    forwardPayload["deviceId"] = Aes256CbcEncrypterApp.Encrypt(deviceId, clientKey);
+                    forwardPayload["session"] = Aes256CbcEncrypterApp.Encrypt(session, clientKey);
+                }
 
                 string jsonContent = JsonConvert.SerializeObject(forwardPayload);
                 httpRequest.Content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
@@ -576,13 +601,14 @@ namespace SankalpAPI.Services
                 using var response = await client.SendAsync(httpRequest, cancellationToken);
                 string responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
                 int statusCode = (int)response.StatusCode;
+                var portalResponseHeaders = GetSankalpAuthHeaders(response);
 
-                _logger.LogInformation("External verify-otp response: HTTP {StatusCode}, Body: {ResponseBody}",
-                    statusCode, responseBody);
+                _logger.LogInformation("External verify-otp response: HTTP {StatusCode}", statusCode);
+                string? originalDataString = null;
 
                 if (response.IsSuccessStatusCode)
                 {
-                    bool rootStatus = true;
+                    bool rootStatus = false;
                     string message = "OTP verified successfully.";
                     var dataItems = new List<JObject>();
 
@@ -590,7 +616,10 @@ namespace SankalpAPI.Services
                     {
                         try
                         {
-                            var token = JToken.Parse(responseBody);
+                            var originalResponse = JToken.Parse(responseBody);
+                            if (originalResponse is JObject originalObject && originalObject["data"]?.Type == JTokenType.String)
+                                originalDataString = originalObject["data"]!.Value<string>();
+                            var token = JToken.Parse(PortalResponseDecoder.Decode(responseBody, clientKey));
                             if (token is JObject obj)
                             {
                                 if (obj["status"] != null)
@@ -629,9 +658,18 @@ namespace SankalpAPI.Services
                         }
                         catch (Exception parseEx)
                         {
-                            _logger.LogWarning(parseEx, "Failed to parse external verify-otp response body.");
+                            _logger.LogWarning("External verify-otp response could not be decoded ({ErrorType}).", parseEx.GetType().Name);
+                            return new ApplicantResponse { Status = false, StatusCode = 502,
+                                Message = "The portal responded, but its verification data could not be decrypted or parsed." };
                         }
                     }
+
+                    if (!rootStatus)
+                        return new ApplicantResponse { Status = false, StatusCode = 400, Message = message };
+
+                    if (dataItems.Count == 0 && aIdList.Count == 0)
+                        return new ApplicantResponse { Status = true, StatusCode = 200,
+                            Message = message, Data = originalDataString, ResponseHeaders = portalResponseHeaders };
 
                     if (dataItems.Count > 0)
                     {
@@ -854,14 +892,17 @@ namespace SankalpAPI.Services
                     mobileNo, request.PortalId, verifiedResults.Count);
 
                 // Return single object if 1 record verified, or array if multiple
-                object dataPayload = verifiedResults.Count == 1 ? (object)verifiedResults[0] : verifiedResults;
+                object dataPayload = originalDataString is not null
+                    ? originalDataString
+                    : verifiedResults.Count == 1 ? (object)verifiedResults[0] : verifiedResults;
 
                 return new ApplicantResponse
                 {
                     Status = true,
                     StatusCode = (int)HttpStatusCode.OK,
                     Message = "OTP verified successfully.",
-                    Data = dataPayload
+                    Data = dataPayload,
+                    ResponseHeaders = portalResponseHeaders
                 };
             }
             catch (TaskCanceledException ex)
@@ -888,6 +929,112 @@ namespace SankalpAPI.Services
                     Data = null
                 };
             }
+        }
+
+        public Task<ApplicantResponse> GetApplicantListAsync(
+            SankalpApplicantLookupRequest request,
+            string? authToken,
+            string? authToken1,
+            CancellationToken cancellationToken = default) =>
+            ForwardSankalpApplicantLookupAsync(GetApplicantListEndpoint, request, authToken, authToken1, cancellationToken);
+
+        public Task<ApplicantResponse> GetApplicantFullDetailsAsync(
+            SankalpApplicantLookupRequest request,
+            string? authToken,
+            string? authToken1,
+            CancellationToken cancellationToken = default) =>
+            ForwardSankalpApplicantLookupAsync(GetApplicantFullDetailsEndpoint, request, authToken, authToken1, cancellationToken);
+
+        private async Task<ApplicantResponse> ForwardSankalpApplicantLookupAsync(
+            string endpoint,
+            SankalpApplicantLookupRequest request,
+            string? authToken,
+            string? authToken1,
+            CancellationToken cancellationToken)
+        {
+            if (request == null || string.IsNullOrWhiteSpace(request.Data))
+            {
+                return new ApplicantResponse
+                {
+                    Status = false,
+                    StatusCode = (int)HttpStatusCode.BadRequest,
+                    Message = "Encrypted data is required."
+                };
+            }
+
+            if (string.IsNullOrWhiteSpace(authToken) || string.IsNullOrWhiteSpace(authToken1))
+            {
+                return new ApplicantResponse
+                {
+                    Status = false,
+                    StatusCode = (int)HttpStatusCode.Unauthorized,
+                    Message = "authtoken and authtoken1 headers from VerifyApplicantOtp are required."
+                };
+            }
+
+            string baseUrl = _configuration["SankalpExternal:BaseUrl"]?.Trim() ?? string.Empty;
+            string targetUrl = BuildTargetUrl(baseUrl, endpoint);
+            if (!Uri.TryCreate(targetUrl, UriKind.Absolute, out var targetUri))
+            {
+                return new ApplicantResponse
+                {
+                    Status = false,
+                    StatusCode = (int)HttpStatusCode.InternalServerError,
+                    Message = "Sankalp external API base URL is not configured."
+                };
+            }
+
+            try
+            {
+                var client = _httpClientFactory.CreateClient();
+                client.Timeout = TimeSpan.FromSeconds(DefaultTimeoutSeconds);
+                using var httpRequest = new HttpRequestMessage(HttpMethod.Post, targetUri);
+                httpRequest.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                httpRequest.Headers.TryAddWithoutValidation("authtoken", authToken.Trim());
+                httpRequest.Headers.TryAddWithoutValidation("authtoken1", authToken1.Trim());
+                httpRequest.Content = new StringContent(
+                    JsonConvert.SerializeObject(new { data = request.Data }),
+                    Encoding.UTF8,
+                    "application/json");
+
+                using var response = await client.SendAsync(httpRequest, cancellationToken);
+                string responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+
+                return new ApplicantResponse
+                {
+                    Status = response.IsSuccessStatusCode,
+                    StatusCode = (int)response.StatusCode,
+                    Message = response.IsSuccessStatusCode ? "Success" : $"Sankalp API returned HTTP {(int)response.StatusCode}.",
+                    // Keep the external response exactly as received: it contains
+                    // encrypted data and must not be decrypted or reshaped here.
+                    Data = responseBody,
+                    ResponseHeaders = GetSankalpAuthHeaders(response)
+                };
+            }
+            catch (TaskCanceledException)
+            {
+                return new ApplicantResponse { Status = false, StatusCode = (int)HttpStatusCode.GatewayTimeout, Message = "Sankalp API timed out." };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unable to call Sankalp applicant endpoint {Endpoint}", endpoint);
+                return new ApplicantResponse { Status = false, StatusCode = (int)HttpStatusCode.BadGateway, Message = "Unable to connect to Sankalp API." };
+            }
+        }
+
+        private static Dictionary<string, string> GetSankalpAuthHeaders(HttpResponseMessage response)
+        {
+            var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (string name in new[] { "authtoken", "authtoken1" })
+            {
+                if (response.Headers.TryGetValues(name, out var values))
+                {
+                    string? value = values.FirstOrDefault();
+                    if (!string.IsNullOrWhiteSpace(value))
+                        headers[name] = value;
+                }
+            }
+            return headers;
         }
 
         /// <summary>

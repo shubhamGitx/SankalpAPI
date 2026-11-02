@@ -18,6 +18,12 @@ namespace SankalpAPI.Interface
         /// </summary>
         Task<ApplicantResponse> VerifyOtpAsync(VerifyOtpRequest request, CancellationToken cancellationToken = default);
 
+        /// <summary>Forwards the encrypted Sankalp applicant-list request with its OTP authentication headers.</summary>
+        Task<ApplicantResponse> GetApplicantListAsync(SankalpApplicantLookupRequest request, string? authToken, string? authToken1, CancellationToken cancellationToken = default);
+
+        /// <summary>Forwards the encrypted Sankalp full-details request with its OTP authentication headers.</summary>
+        Task<ApplicantResponse> GetApplicantFullDetailsAsync(SankalpApplicantLookupRequest request, string? authToken, string? authToken1, CancellationToken cancellationToken = default);
+
         /// <summary>
         /// Communicates with an external portal API (eLabharthi /api/Beneficiary/Get_Beneficiary_Messages)
         /// to fetch beneficiary messages using the user's token, saves each message into tbl_Message (with mobile),

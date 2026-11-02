@@ -49,7 +49,7 @@ namespace SankalpAPI.Controllers
         ///       "UserType": "2"
         ///     }
         /// </remarks>
-        [HttpPost("GetApplicantDetails")]
+        [HttpPost("Applicant-Send-otp")]
         [ProducesResponseType(typeof(ApplicantListResponse), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApplicantResponse), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApplicantResponse), StatusCodes.Status404NotFound)]
@@ -60,7 +60,6 @@ namespace SankalpAPI.Controllers
         public async Task<IActionResult> GetApplicantDetails([FromBody] ApplicantRequest request, CancellationToken cancellationToken)
         {
             var response = await _applicantService.GetApplicantDetailsAsync(request, cancellationToken);
-
             if (response.StatusCode == StatusCodes.Status400BadRequest)
             {
                 return BadRequest(response);
@@ -85,91 +84,27 @@ namespace SankalpAPI.Controllers
         }
 
         /// <summary>
-        /// Verifies OTP via the external portal API (when portal URL is configured) or via server-side OTP verification
-        /// (when portal URL is unavailable, inserting the applicant mapping into tbl_map_user_portal).
+        /// Proxies the ApiByAvinash Sankalp full-details endpoint after OTP verification.
+        /// Send the encrypted <c>data</c> body plus the <c>authtoken</c> and
+        /// <c>authtoken1</c> headers returned by VerifyApplicantOtp.
         /// </summary>
-        /// <remarks>
-        /// Sample Request (External Portal OTP Verification):
-        /// 
-        ///     POST /api/Applicant/VerifyOtp
-        ///     {
-        ///       "a_Id": [73, 74],
-        ///       "mobileNo": "9097372728",
-        ///       "otp": "558861",
-        ///       "deviceId": "DEV123",
-        ///       "session": "2025"
-        ///     }
-        /// 
-        /// Sample Request (Internal OTP-based Applicant Registration):
-        /// 
-        ///     POST /api/Applicant/VerifyOtp
-        ///     {
-        ///       "portal_id": 5,
-        ///       "mobile_no": "9507637005",
-        ///       "otp": "123456",
-        ///       "deviceid": "DEV123",
-        ///       "session": "2026",
-        ///       "UserType": "2"
-        ///     }
-        /// </remarks>
-        [HttpPost("VerifyOtp")]
-        [ProducesResponseType(typeof(VerifyOtpResponse), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ApplicantResponse), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(ApplicantResponse), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(ApplicantResponse), StatusCodes.Status409Conflict)]
-        [ProducesResponseType(typeof(ApplicantResponse), StatusCodes.Status429TooManyRequests)]
-        [ProducesResponseType(typeof(ApplicantResponse), StatusCodes.Status502BadGateway)]
-        [ProducesResponseType(typeof(ApplicantResponse), StatusCodes.Status504GatewayTimeout)]
-        [ProducesResponseType(typeof(ApplicantResponse), StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> VerifyOtp([FromBody] VerifyOtpRequest request, CancellationToken cancellationToken)
+        [HttpPost("GetApplicantDetails")]
+        public async Task<IActionResult> GetApplicantFullDetails([FromBody] SankalpApplicantLookupRequest request, CancellationToken cancellationToken)
         {
-            var response = await _applicantService.VerifyOtpAsync(request, cancellationToken);
-
-            if (response.StatusCode == StatusCodes.Status400BadRequest)
-            {
-                return BadRequest(response);
-            }
-
-            if (response.StatusCode == StatusCodes.Status404NotFound)
-            {
-                return NotFound(response);
-            }
-
-            if (response.StatusCode == StatusCodes.Status502BadGateway)
-            {
-                return StatusCode(StatusCodes.Status502BadGateway, response);
-            }
-
-            if (response.StatusCode == StatusCodes.Status504GatewayTimeout)
-            {
-                return StatusCode(StatusCodes.Status504GatewayTimeout, response);
-            }
-
-            if (response.StatusCode == StatusCodes.Status500InternalServerError)
-            {
-                return StatusCode(StatusCodes.Status500InternalServerError, response);
-            }
-
-            return StatusCode(response.StatusCode, response);
+            var response = await _applicantService.GetApplicantFullDetailsAsync(
+                request,
+                Request.Headers["authtoken"].FirstOrDefault(),
+                Request.Headers["authtoken1"].FirstOrDefault(),
+                cancellationToken);
+            CopyPortalHeaders(response);
+            return PortalContent(response);
         }
 
         /// <summary>
-        /// Dedicated endpoint to verify the server-generated OTP for portals without an external portal URL
-        /// and register the applicant portal mapping in tbl_map_user_portal.
+        /// Verifies an OTP supplied with its request context.
+        /// The external portal receives clientKey plus AES-encrypted otpId, otp, and mobileNo.
         /// </summary>
-        /// <remarks>
-        /// Sample Request:
-        /// 
-        ///     POST /api/Applicant/VerifyApplicantOtp
-        ///     {
-        ///       "portal_id": 5,
-        ///       "mobile_no": "9507637005",
-        ///       "otp": "123456",
-        ///       "deviceid": "DEV123",
-        ///       "session": "2026",
-        ///       "UserType": "2"
-        ///     }
-        /// </remarks>
+        /// <remarks>Request body: { "otpId": "29", "otp": "123456" }</remarks>
         [HttpPost("VerifyApplicantOtp")]
         [ProducesResponseType(typeof(ApplicantResponse), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApplicantResponse), StatusCodes.Status400BadRequest)]
@@ -177,9 +112,15 @@ namespace SankalpAPI.Controllers
         [ProducesResponseType(typeof(ApplicantResponse), StatusCodes.Status409Conflict)]
         [ProducesResponseType(typeof(ApplicantResponse), StatusCodes.Status429TooManyRequests)]
         [ProducesResponseType(typeof(ApplicantResponse), StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> VerifyApplicantOtp([FromBody] VerifyApplicantOtpRequest request, CancellationToken cancellationToken)
+        public async Task<IActionResult> VerifyApplicantOtp([FromBody] ApplicantOtpInput input, CancellationToken cancellationToken)
         {
-            var response = await _applicantService.VerifyApplicantOtpAsync(request, cancellationToken);
+            var request = new VerifyOtpRequest
+            {
+                Otp = input.Otp, OtpId = input.OtpId, ClientKey = input.ClientKey,
+                PortalId = input.PortalId, MobileNo = input.MobileNo, OtpOnlyForward = true
+            };
+            var response = await _applicantService.VerifyOtpAsync(request, cancellationToken);
+            CopyPortalHeaders(response);
 
             if (response.StatusCode == StatusCodes.Status400BadRequest)
             {
@@ -193,6 +134,39 @@ namespace SankalpAPI.Controllers
 
             return StatusCode(response.StatusCode, response);
         }
+
+        /// <summary>
+        /// Proxies the external Sankalp applicant-list endpoint. Send the encrypted
+        /// <c>data</c> value and forward the <c>authtoken</c> and <c>authtoken1</c>
+        /// headers received from VerifyApplicantOtp.
+        /// </summary>
+        [HttpPost("GetApplicantList")]
+        public async Task<IActionResult> GetApplicantList([FromBody] SankalpApplicantLookupRequest request, CancellationToken cancellationToken)
+        {
+            var response = await _applicantService.GetApplicantListAsync(
+                request,
+                Request.Headers["authtoken"].FirstOrDefault(),
+                Request.Headers["authtoken1"].FirstOrDefault(),
+                cancellationToken);
+            CopyPortalHeaders(response);
+            return PortalContent(response);
+        }
+
+        private void CopyPortalHeaders(ApplicantResponse response)
+        {
+            foreach (var header in response.ResponseHeaders)
+            {
+                Response.Headers[header.Key] = header.Value;
+            }
+        }
+
+        private static ContentResult PortalContent(ApplicantResponse response) => new()
+        {
+            Content = response.Data as string ?? string.Empty,
+            ContentType = "application/json",
+            StatusCode = response.StatusCode
+        };
+
 
         /// <summary>
         /// Fetches beneficiary messages from the external portal API (eLabharthi http://10.133.20.151/eLabharthi/api/Beneficiary/Get_Beneficiary_Messages),

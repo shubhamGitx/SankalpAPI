@@ -170,6 +170,7 @@ app.UseRouting();
 
 // Client Token Authentication
 app.UseMiddleware<ClientTokenMiddleware>();
+app.UseMiddleware<EncryptedRequestMiddleware>();
 
 app.MapControllers();
 
