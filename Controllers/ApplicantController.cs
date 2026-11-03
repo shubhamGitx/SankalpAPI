@@ -89,12 +89,16 @@ namespace SankalpAPI.Controllers
         /// <c>authtoken1</c> headers returned by VerifyApplicantOtp.
         /// </summary>
         [HttpPost("GetApplicantDetails")]
-        public async Task<IActionResult> GetApplicantFullDetails([FromBody] SankalpApplicantLookupRequest request, CancellationToken cancellationToken)
+        public async Task<IActionResult> GetApplicantFullDetails(
+            [FromBody] SankalpApplicantLookupRequest request,
+            [FromHeader(Name = "authtoken")] string? authToken,
+            [FromHeader(Name = "authtoken1")] string? authToken1,
+            CancellationToken cancellationToken)
         {
             var response = await _applicantService.GetApplicantFullDetailsAsync(
                 request,
-                Request.Headers["authtoken"].FirstOrDefault(),
-                Request.Headers["authtoken1"].FirstOrDefault(),
+                authToken,
+                authToken1,
                 cancellationToken);
             CopyPortalHeaders(response);
             return PortalContent(response);
@@ -141,12 +145,16 @@ namespace SankalpAPI.Controllers
         /// headers received from VerifyApplicantOtp.
         /// </summary>
         [HttpPost("GetApplicantList")]
-        public async Task<IActionResult> GetApplicantList([FromBody] SankalpApplicantLookupRequest request, CancellationToken cancellationToken)
+        public async Task<IActionResult> GetApplicantList(
+            [FromBody] SankalpApplicantLookupRequest request,
+            [FromHeader(Name = "authtoken")] string? authToken,
+            [FromHeader(Name = "authtoken1")] string? authToken1,
+            CancellationToken cancellationToken)
         {
             var response = await _applicantService.GetApplicantListAsync(
                 request,
-                Request.Headers["authtoken"].FirstOrDefault(),
-                Request.Headers["authtoken1"].FirstOrDefault(),
+                authToken,
+                authToken1,
                 cancellationToken);
             CopyPortalHeaders(response);
             return PortalContent(response);
