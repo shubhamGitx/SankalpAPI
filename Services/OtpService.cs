@@ -50,8 +50,19 @@ namespace SankalpAPI.Services
                 };
             }
 
-            string mobile = DecryptIfNeeded(request.Mobile, request.ClientKey).Trim();
+            if (request == null || string.IsNullOrWhiteSpace(request.ClientKey))
+            {
+                return new OtpSendResponse
+                {
+                    Status = false,
+                    Message = "Client key is required."
+                };
+            }
 
+
+
+            string mobile = DecryptIfNeeded(request.Mobile, request.ClientKey).Trim();
+            string key = RSA_Enc_Dec.Decryption(request.ClientKey);
             if (!ValidateMobileNumber(mobile))
             {
                 return new OtpSendResponse
@@ -95,7 +106,7 @@ namespace SankalpAPI.Services
                     Message = "OTP sent successfully to registered mobile number.",
                     Data = new OtpSendData
                     {
-                        Mobile = mobile,
+                        Mobile = Aes256CbcEncrypterApp.Encrypt(mobile, key),
                         MaskedMobile = MaskMobile(mobile),
                         OtpExpiryMinutes = expiryMinutes,
                         DevOtp = _env.IsDevelopment() ? otp : null
@@ -201,11 +212,7 @@ namespace SankalpAPI.Services
 
                         if (!string.IsNullOrWhiteSpace(fcmToken))
                         {
-                            await _userRepository.UpsertUserFcmDeviceAsync(
-                                existingUser.UserId.ToString(),
-                                deviceId,
-                                fcmToken,
-                                platform);
+                            await _userRepository.UpsertUserFcmDeviceAsync(existingUser.UserId.ToString(), deviceId, fcmToken, platform);
                         }
                     }
 

@@ -16,4 +16,11 @@
   </ItemGroup>
 
 
+  <ItemGroup>
+    <None Update="SecureKey\firebase-adminsdk.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>Always</CopyToPublishDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

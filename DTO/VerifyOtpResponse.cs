@@ -90,6 +90,36 @@ namespace SankalpAPI.DTO
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public DateTime? EntryDate { get; set; }
 
+        [JsonPropertyName("DistName")]
+        public string DistName { get; set; } = string.Empty;
+
+        [JsonPropertyName("BlockName")]
+        public string BlockName { get; set; } = string.Empty;
+
+        [JsonPropertyName("PanchayatName")]
+        public string PanchayatName { get; set; } = string.Empty;
+
+        [JsonPropertyName("VILLNAME")]
+        public string VILLNAME { get; set; } = string.Empty;
+
+        [JsonPropertyName("WARDNAME")]
+        public string WARDNAME { get; set; } = string.Empty;
+
+        [JsonPropertyName("genderName")]
+        public string genderName { get; set; } = string.Empty;
+
+        [JsonPropertyName("ageGroupName")]
+        public string ageGroupName { get; set; } = string.Empty;
+
+        [JsonPropertyName("categoryName")]
+        public string categoryName { get; set; } = string.Empty;
+
+        [JsonPropertyName("qualificationName")]
+        public string qualificationName { get; set; } = string.Empty;
+
+        [JsonPropertyName("occupationName")]
+        public string occupationName { get; set; } = string.Empty;
+
         // Multiple interests from MapUser_Interest (IDs)
         [JsonPropertyName("interests")]
         public List<long> Interests { get; set; } = new List<long>();

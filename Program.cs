@@ -1,5 +1,3 @@
-using FirebaseAdmin;
-using Google.Apis.Auth.OAuth2;
 using SankalpAPI.Helper;
 using SankalpAPI.Interface;
 using SankalpAPI.Middleware;
@@ -34,27 +32,7 @@ builder.Services.AddEndpointsApiExplorer();
 // Configure via appsettings.json ("Firebase:ServiceAccountKeyPath")
 // or the GOOGLE_APPLICATION_CREDENTIALS environment variable.
 // ============================================================
-if (FirebaseApp.DefaultInstance == null)
-{
-    try
-    {
-        string? serviceAccountPath = builder.Configuration["Firebase:ServiceAccountKeyPath"]
-            ?? Environment.GetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS");
-
-        GoogleCredential credential = !string.IsNullOrWhiteSpace(serviceAccountPath) && File.Exists(serviceAccountPath)
-            ? GoogleCredential.FromFile(serviceAccountPath)
-            : GoogleCredential.GetApplicationDefault();
-
-        FirebaseApp.Create(new AppOptions
-        {
-            Credential = credential
-        });
-    }
-    catch (Exception ex)
-    {
-        Console.Error.WriteLine($"[Firebase Warning] FirebaseApp could not be initialized at startup: {ex.Message}");
-    }
-}
+FirebaseInitializer.EnsureInitialized(builder.Configuration);
 
 builder.Services.AddSwaggerGen(options =>
 {

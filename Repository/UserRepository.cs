@@ -245,8 +245,20 @@ namespace SankalpAPI.Repository
         {
             await Task.CompletedTask;
 
-            const string userSql = @"SELECT TOP 1 User_id, Name, Mobile, DistCode, BlockCode, PanchayatCode, AreaType, VILLCODE, WARDCODE, Gender_code, Age_GroupID, Category_Id, Qualification_id, Occupation_id, Deviceid, Token, Entrydate
-                                FROM dbo.tbl_user WHERE Mobile = @Mobile;";
+            const string userSql = @"SELECT TOP(1) u.User_id, u.Name, u.Mobile, u.DistCode, u.BlockCode, u.PanchayatCode, u.AreaType, u.VILLCODE, u.WARDCODE, u.Gender_code, u.Age_GroupID, u.Category_Id, u.Qualification_id, u.Occupation_id, u.Deviceid,
+                         u.Token, u.Entrydate, d.DistName, b.BlockName, p.PanchayatName, v.VILLNAME, w.WARDNAME, g.gender_name as genderName, ag.age_group_name as ageGroupName, c.category_name as categoryName, q.qualification_name as qualificationName,
+						 o.occupation_name as occupationName
+                         FROM tbl_user AS u LEFT OUTER JOIN
+                         Districts AS d ON u.DistCode = d.DistCode LEFT OUTER JOIN
+                         Blocks AS b ON u.BlockCode = b.BlockCode LEFT OUTER JOIN
+						 Panchayats as p ON u.PanchayatCode=p.PanchayatCode LEFT OUTER JOIN
+						 VillageMaster as v ON u.VILLCODE=v.VILLCODE LEFT OUTER JOIN
+						 WARDS as w ON u.WARDCODE=w.WARDCODE LEFT OUTER JOIN
+						 gender as g ON u.Gender_code=g.gender_code LEFT OUTER JOIN
+						 mst_age_group as ag ON u.Age_GroupID=ag.id LEFT OUTER JOIN
+						 mst_category as c ON u.Category_Id=c.category_id LEFT OUTER JOIN
+						 mst_qualification as q ON u.Qualification_id=q.qualification_id LEFT OUTER JOIN
+						 mst_occupation as o ON u.Occupation_id=o.occupation_id WHERE u.Mobile = @Mobile;";
 
             SqlParameter[] userParams =
             {
@@ -279,6 +291,16 @@ namespace SankalpAPI.Repository
                 DeviceId = row["Deviceid"] != DBNull.Value ? row["Deviceid"].ToString() : null,
                 Token = row["Token"] != DBNull.Value ? row["Token"].ToString() : null,
                 EntryDate = row["Entrydate"] != DBNull.Value ? Convert.ToDateTime(row["Entrydate"]) : null,
+                DistName = row["DistName"] != DBNull.Value ? row["DistName"].ToString() ?? string.Empty : string.Empty,
+                BlockName = row["BlockName"] != DBNull.Value ? row["BlockName"].ToString() ?? string.Empty : string.Empty,
+                PanchayatName = row["PanchayatName"] != DBNull.Value ? row["PanchayatName"].ToString() ?? string.Empty : string.Empty,
+                VILLNAME = row["VILLNAME"] != DBNull.Value ? row["VILLNAME"].ToString() ?? string.Empty : string.Empty,
+                WARDNAME = row["WARDNAME"] != DBNull.Value ? row["WARDNAME"].ToString() ?? string.Empty : string.Empty,
+                genderName = row["genderName"] != DBNull.Value ? row["genderName"].ToString() ?? string.Empty : string.Empty,
+                ageGroupName = row["ageGroupName"] != DBNull.Value ? row["ageGroupName"].ToString() ?? string.Empty : string.Empty,
+                categoryName = row["categoryName"] != DBNull.Value ? row["categoryName"].ToString() ?? string.Empty : string.Empty,
+                qualificationName = row["qualificationName"] != DBNull.Value ? row["qualificationName"].ToString() ?? string.Empty : string.Empty,
+                occupationName = row["occupationName"] != DBNull.Value ? row["occupationName"].ToString() ?? string.Empty : string.Empty,
                 Interests = new List<long>(),
                 UserInterests = new List<UserInterestData>()
             };

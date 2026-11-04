@@ -41,6 +41,7 @@ namespace SankalpAPI.Middleware
                 context.Request.Path.StartsWithSegments("/api/Applicant", StringComparison.OrdinalIgnoreCase) ||
                 context.Request.Path.StartsWithSegments("/api/Totp", StringComparison.OrdinalIgnoreCase) ||
                 context.Request.Path.StartsWithSegments("/api/Otp", StringComparison.OrdinalIgnoreCase) ||
+                context.Request.Path.StartsWithSegments("/api/devices", StringComparison.OrdinalIgnoreCase) ||
                 context.Request.Path.StartsWithSegments("/api/Message", StringComparison.OrdinalIgnoreCase))
             {
                 await _next(context);

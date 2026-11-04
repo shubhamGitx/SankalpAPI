@@ -5,9 +5,9 @@ using System.Linq;
 using System.Threading.Tasks;
 using FirebaseAdmin;
 using FirebaseAdmin.Messaging;
-using Google.Apis.Auth.OAuth2;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using SankalpAPI.Helper;
 using SankalpAPI.Interface;
 using SankalpAPI.Model;
 
@@ -19,7 +19,6 @@ namespace SankalpAPI.Services
         private readonly ILogger<FirebaseNotificationService> _logger;
         private readonly ICampaignRepository _campaignRepository;
         private readonly FcmMessageFactory _messageFactory;
-        private static readonly object _initLock = new();
         private static bool _isFirebaseInitialized = false;
         private readonly bool _simulateIfNoCredentials;
 
@@ -34,59 +33,14 @@ namespace SankalpAPI.Services
             _campaignRepository = campaignRepository;
             _messageFactory = messageFactory;
 
-            _simulateIfNoCredentials = _configuration.GetValue<bool>("Firebase:SimulateIfNoCredentials", true);
+            _simulateIfNoCredentials = _configuration.GetValue<bool>("Firebase:SimulateIfNoCredentials", false);
 
             EnsureFirebaseAppInitialized();
         }
 
         private void EnsureFirebaseAppInitialized()
         {
-            if (FirebaseApp.DefaultInstance != null)
-            {
-                _isFirebaseInitialized = true;
-                return;
-            }
-
-            lock (_initLock)
-            {
-                if (FirebaseApp.DefaultInstance != null)
-                {
-                    _isFirebaseInitialized = true;
-                    return;
-                }
-
-                try
-                {
-                    string credentialPath = _configuration.GetValue<string>("Firebase:ServiceAccountKeyPath") ?? "firebase-service-account.json";
-                    string projectId = _configuration.GetValue<string>("Firebase:ProjectId") ?? "sankalp-bihar";
-
-                    string resolvedPath = Path.IsPathRooted(credentialPath)
-                        ? credentialPath
-                        : Path.Combine(AppContext.BaseDirectory, credentialPath);
-
-                    if (File.Exists(resolvedPath))
-                    {
-                        FirebaseApp.Create(new AppOptions
-                        {
-                            Credential = GoogleCredential.FromFile(resolvedPath),
-                            ProjectId = projectId
-                        });
-                        _isFirebaseInitialized = true;
-                        _logger.LogInformation("FirebaseApp initialized successfully with credentials from {Path}", resolvedPath);
-                    }
-                    else
-                    {
-                        _isFirebaseInitialized = false;
-                        _logger.LogWarning("Firebase credential file not found at {Path}. Simulation mode is {Simulate}.",
-                            resolvedPath, _simulateIfNoCredentials ? "ENABLED" : "DISABLED");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _isFirebaseInitialized = false;
-                    _logger.LogError(ex, "Failed to initialize FirebaseApp. Fallback to simulation if enabled.");
-                }
-            }
+            _isFirebaseInitialized = FirebaseInitializer.EnsureInitialized(_configuration, _logger);
         }
 
         public async Task<List<CampaignDeliveryLogDto>> SendCampaignMulticastAsync(
@@ -180,6 +134,12 @@ namespace SankalpAPI.Services
                 safeData["photo1"] = imageUrl;
                 safeData["image"] = imageUrl;
                 safeData["imageUrl"] = imageUrl;
+            }
+
+            // Lazy initialization check
+            if (!_isFirebaseInitialized || FirebaseMessaging.DefaultInstance == null)
+            {
+                _isFirebaseInitialized = FirebaseInitializer.EnsureInitialized(_configuration, _logger);
             }
 
             // If Firebase is initialized, send via FirebaseAdmin SDK
@@ -348,7 +308,7 @@ namespace SankalpAPI.Services
                     Platform = cand.Platform ?? "Android",
                     DeliveryStatus = "Failed",
                     ErrorCode = "NoFirebaseCredentials",
-                    ErrorMessage = "Firebase credentials not configured and simulation is disabled",
+                    ErrorMessage = FirebaseInitializer.InitializationError ?? "Firebase credentials not configured and simulation is disabled",
                     DispatchedAt = DateTime.UtcNow
                 });
             }

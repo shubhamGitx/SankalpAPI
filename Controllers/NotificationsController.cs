@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SankalpAPI.DTO;
 using SankalpAPI.Helper;
@@ -24,6 +25,18 @@ namespace SankalpAPI.Controllers
             _fcmNotificationService = fcmNotificationService;
             _userRepository = userRepository;
             _exceptionLogging = exceptionLogging;
+        }
+
+        /// <summary>
+        /// Diagnostic endpoint to verify Firebase Admin SDK initialization status and credentials on the server.
+        /// Can be accessed anonymously to quickly diagnose deployment issues.
+        /// </summary>
+        [HttpGet("firebase-status")]
+        [AllowAnonymous]
+        public IActionResult GetFirebaseStatus([FromServices] IConfiguration configuration)
+        {
+            var diagnostics = FirebaseInitializer.GetDiagnostics(configuration);
+            return Ok(diagnostics);
         }
 
         /// <summary>

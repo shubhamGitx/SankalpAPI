@@ -12,17 +12,22 @@ namespace SankalpAPI.Services
         private readonly ILogger<FcmNotificationService> _logger;
         private readonly ExceptionLogging _exceptionLogging;
         private readonly FcmMessageFactory _messageFactory;
+        private readonly IConfiguration _configuration;
 
         public FcmNotificationService(
             IUserRepository userRepository,
             ILogger<FcmNotificationService> logger,
             ExceptionLogging exceptionLogging,
-            FcmMessageFactory messageFactory)
+            FcmMessageFactory messageFactory,
+            IConfiguration configuration)
         {
             _userRepository = userRepository;
             _logger = logger;
             _exceptionLogging = exceptionLogging;
             _messageFactory = messageFactory;
+            _configuration = configuration;
+
+            FirebaseInitializer.EnsureInitialized(_configuration, _logger);
         }
 
         public async Task<ServiceResult<SendUserNotificationResponse>> SendToUserAsync(
@@ -43,15 +48,16 @@ namespace SankalpAPI.Services
                     });
             }
 
-            if (FirebaseApp.DefaultInstance == null || FirebaseMessaging.DefaultInstance == null)
+            if (!FirebaseInitializer.EnsureInitialized(_configuration, _logger))
             {
-                _logger.LogError("FirebaseApp.DefaultInstance is not initialized. Verify Firebase service-account credentials on the server.");
+                string diag = FirebaseInitializer.InitializationError ?? "Firebase credentials could not be loaded.";
+                _logger.LogError("FirebaseApp is not initialized: {Diag}", diag);
                 return ServiceResult<SendUserNotificationResponse>.Ok(
                     StatusCodes.Status503ServiceUnavailable,
                     new SendUserNotificationResponse
                     {
                         Success = false,
-                        Message = "Push notification service is currently unavailable."
+                        Message = $"Push notification service is currently unavailable. {diag}"
                     });
             }
 
@@ -158,7 +164,7 @@ namespace SankalpAPI.Services
                     new SendUserNotificationResponse
                     {
                         Success = false,
-                        Message = "An error occurred while sending push notification.",
+                        Message = $"An error occurred while sending push notification: {ex.Message}",
                         UserId = cleanUserId
                     });
             }

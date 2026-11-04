@@ -248,33 +248,18 @@ namespace SankalpAPI.Repository
                 }
             };
 
-            const string query = @"
-                SELECT
-                    m.user_portal_id,
-                    m.portal_id,
-                    p.portal_name,
-                    m.User_Type_ID,
-                    ut.User_Type_Name,
-                    u.Mobile AS mobile,
-                    u.Name AS name,
-                    CONVERT(varchar(20), u.User_id) AS userid,
-                    u.Deviceid AS deviceid,
-                    d.DistName AS district_code,
-                    b.BlockName AS block_code,
-                    Panch.PanchayatName AS panchayatcode,
-                    m.entry_by,
-                    m.entry_date
-                FROM dbo.tbl_user u
-                LEFT OUTER JOIN dbo.tbl_map_user_portal m
-                    ON m.userid = u.Mobile
-                   AND (@p_portal_id IS NULL OR m.portal_id = @p_portal_id)
-                   AND (@p_user_type_id IS NULL OR m.User_Type_ID = @p_user_type_id)
-                LEFT JOIN dbo.mst_portal p ON m.portal_id = p.portal_id
-                LEFT JOIN dbo.UserType ut ON m.User_Type_ID = ut.User_Type_ID AND m.portal_id = ut.Portal_ID
-                LEFT OUTER JOIN Districts d ON d.DistCode=u.DistCode
-                LEFt OUTER JOIN Blocks b ON b.BlockCode=u.BlockCode
-                LEFT OUTER JOIN Panchayats Panch ON Panch.PanchayatCode=u.PanchayatCode
-                ORDER BY m.entry_date DESC, m.user_portal_id DESC, u.User_id DESC;";
+            const string query = @"SELECT u.Name, u.User_id AS userid, u.Mobile, u.Password, u.Gender_code, u.Age_GroupID, u.Category_Id, u.Qualification_id, u.Occupation_id, u.Deviceid, u.Token, u.Entryby as entry_by,
+                                 u.Entrydate as entry_date, u.Updatedate, u.Email, u.UserRole, u.IsActive, m.portal_id, m.User_Type_ID, d.DistName AS district_code, b.BlockName AS block_code, p.PanchayatName AS panchayatcode,
+                                 u.WARDCODE, u.VILLCODE, pt.portal_name, m.user_portal_id, ut.User_Type_Name
+                                 FROM tbl_user AS u LEFT OUTER JOIN
+                                 Panchayats AS p ON u.PanchayatCode = p.PanchayatCode LEFT OUTER JOIN
+                                 Blocks AS b ON u.BlockCode = b.BlockCode LEFT OUTER JOIN
+                                 Districts AS d ON u.DistCode = d.DistCode LEFT OUTER JOIN
+                                 tbl_map_user_portal AS m ON u.Mobile = m.mobile LEFT OUTER JOIN
+						         mst_portal AS pt ON m.portal_id=pt.portal_id LEFT OUTER JOIN
+						         dbo.UserType AS ut ON ut.User_Type_ID = m.User_Type_ID AND ut.Portal_ID = m.portal_id
+						         where  (@p_portal_id=0 OR m.portal_id = @p_portal_id) AND (@p_user_type_id=0 OR m.User_Type_ID = @p_user_type_id)
+						         ORDER BY m.entry_date DESC, m.user_portal_id DESC, u.User_id DESC";
 
             DataTable dt = _dataAccess.GetDataTable(query, parameters);
 

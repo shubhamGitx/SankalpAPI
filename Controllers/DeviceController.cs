@@ -24,20 +24,6 @@ namespace SankalpAPI.Controllers
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> Register([FromBody] RegisterDeviceRequest request, CancellationToken cancellationToken)
         {
-            // Authenticated via ClientTokenMiddleware (X-Client-Token header)
-            var userId = HttpContext.Items["UserID"]?.ToString()
-                ?? User.FindFirstValue(ClaimTypes.NameIdentifier)
-                ?? User.FindFirstValue("sub");
-
-            if (string.IsNullOrWhiteSpace(userId))
-            {
-                return Unauthorized(new
-                {
-                    success = false,
-                    message = "Authenticated user ID was not found."
-                });
-            }
-
             if (request == null ||
                 string.IsNullOrWhiteSpace(request.DeviceId) ||
                 string.IsNullOrWhiteSpace(request.FcmToken) ||
@@ -48,6 +34,28 @@ namespace SankalpAPI.Controllers
                     success = false,
                     message = "DeviceId, FcmToken and Platform are required."
                 });
+            }
+
+            // Authenticated via ClientTokenMiddleware (X-Client-Token header)
+            // or fallback to request.UserId, X-User-Id header, or DeviceId for initial registration
+            var userId = HttpContext.Items["UserID"]?.ToString()
+                ?? User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? User.FindFirstValue("sub");
+
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                if (!string.IsNullOrWhiteSpace(request.UserId))
+                {
+                    userId = request.UserId.Trim();
+                }
+                else if (Request.Headers.TryGetValue("X-User-Id", out var headerUser) && !string.IsNullOrWhiteSpace(headerUser))
+                {
+                    userId = headerUser.ToString().Trim();
+                }
+                else
+                {
+                    userId = request.DeviceId.Trim();
+                }
             }
 
             string deviceId = request.DeviceId.Trim();
@@ -94,6 +102,7 @@ namespace SankalpAPI.Controllers
 
     public class RegisterDeviceRequest
     {
+        public string? UserId { get; set; }
         public string DeviceId { get; set; } = string.Empty;
         public string FcmToken { get; set; } = string.Empty;
         public string Platform { get; set; } = "Android";
